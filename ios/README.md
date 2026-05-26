@@ -31,3 +31,16 @@ files, should be copied into Maou at:
 
 The Maou iOS Xcode target copies that directory into the app bundle as `MKXPZ`
 when it is non-empty.
+
+## Current dependency build status
+
+SDL2 can be built as an iOS static dependency with:
+
+```sh
+./ios/Dependencies/build-sdl2.sh iphoneos
+./ios/Dependencies/build-sdl2.sh iphonesimulator
+```
+
+The script writes generated files under `ios/Dependencies/build/`, which is not
+tracked. The remaining dependencies still need equivalent iOS build scripts
+before mkxp-z itself can be linked into Maou.
