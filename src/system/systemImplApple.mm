@@ -5,12 +5,19 @@
 //  Created by ゾロアーク on 11/22/20.
 //
 
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+#else
 #import <AppKit/AppKit.h>
+#endif
 #import <Metal/Metal.h>
 
 #import <sys/sysctl.h>
 #import "system.h"
+#if !TARGET_OS_IPHONE
 #import "SettingsMenuController.h"
+#endif
 
 std::string systemImpl::getSystemLanguage() {
     @autoreleasepool {
@@ -27,7 +34,11 @@ std::string systemImpl::getUserName() {
 }
 
 int systemImpl::getScalingFactor() {
+#if TARGET_OS_IPHONE
+    return UIScreen.mainScreen.scale;
+#else
     return NSApplication.sharedApplication.mainWindow.backingScaleFactor;
+#endif
 }
 
 bool systemImpl::isWine() {
@@ -35,6 +46,9 @@ bool systemImpl::isWine() {
 }
 
 bool systemImpl::isRosetta() {
+#if TARGET_OS_IPHONE
+    return false;
+#else
     int translated = 0;
     size_t size = sizeof(translated);
     int result = sysctlbyname("sysctl.proc_translated", &translated, &size, NULL, 0);
@@ -43,6 +57,7 @@ bool systemImpl::isRosetta() {
         return false;
     
     return translated;
+#endif
 }
 
 systemImpl::WineHostType systemImpl::getRealHostType() {
@@ -51,6 +66,9 @@ systemImpl::WineHostType systemImpl::getRealHostType() {
 
 
 // constant, if it's not nil then just raise the menu instead
+#if TARGET_OS_IPHONE
+void openSettingsWindow() {}
+#else
 SettingsMenu *smenu = nil;
 void openSettingsWindow() {
     if (smenu == nil) {
@@ -59,12 +77,17 @@ void openSettingsWindow() {
     }
     [smenu raise];
 }
+#endif
 
 bool isMetalSupported() {
+#if TARGET_OS_IPHONE
+    return false;
+#else
     if (@available(macOS 10.13.0, *)) {
         return MTLCreateSystemDefaultDevice() != nil;
     }
     return false;
+#endif
 }
 
 std::string getPlistValue(const char *key) {

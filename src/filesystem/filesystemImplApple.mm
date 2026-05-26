@@ -5,7 +5,12 @@
 //  Created by ゾロアーク on 11/21/20.
 //
 
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+#else
 #import <AppKit/AppKit.h>
+#endif
 #import <dispatch/dispatch.h>
 #import <SDL.h>
 #import <SDL_syswm.h>
@@ -34,6 +39,20 @@ extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView
             return;
         }
 
+#if TARGET_OS_IPHONE
+        UIWindow *sdlWindow = windowInfo.info.uikit.window;
+        UIView *sdlView = sdlWindow.rootViewController.view ?: sdlWindow;
+        UIView *hostView = (__bridge UIView *)nativeView;
+        if (sdlView == nil || hostView == nil) {
+            return;
+        }
+
+        sdlWindow.hidden = YES;
+        [sdlView removeFromSuperview];
+        sdlView.frame = hostView.bounds;
+        sdlView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [hostView addSubview:sdlView];
+#else
         NSWindow *sdlWindow = windowInfo.info.cocoa.window;
         NSView *sdlView = sdlWindow.contentView;
         NSView *hostView = (__bridge NSView *)nativeView;
@@ -46,6 +65,7 @@ extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView
         sdlView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [hostView addSubview:sdlView positioned:NSWindowBelow relativeTo:nil];
         [sdlWindow orderOut:nil];
+#endif
     }
 }
 
@@ -220,6 +240,9 @@ std::string filesystemImpl::getResourcePath() {
 
 std::string filesystemImpl::selectPath(SDL_Window *win, const char *msg, const char *prompt) {
     @autoreleasepool {
+#if TARGET_OS_IPHONE
+        return std::string();
+#else
         NSOpenPanel *panel = [NSOpenPanel openPanel];
         panel.canChooseDirectories = true;
         panel.canChooseFiles = false;
@@ -243,5 +266,6 @@ std::string filesystemImpl::selectPath(SDL_Window *win, const char *msg, const c
             return std::string(NSTOPATH(panel.URLs[0].path));
         
         return std::string();
+#endif
     }
 }
