@@ -4,15 +4,35 @@ BUILD_PREFIX := ${PWD}/build-macosx-$(ARCH)
 LIBDIR := $(BUILD_PREFIX)/lib
 INCLUDEDIR := $(BUILD_PREFIX)/include
 DOWNLOADS := ${PWD}/downloads/$(HOST)
-NPROC := $(shell sysctl -n hw.ncpu)
+DOWNLOAD_CACHE := ${PWD}/download-cache
+NPROC := $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
 # Explicitly including freetype2 dir for now. macOS is having weird issues with ft2build.h
 CFLAGS := -I$(INCLUDEDIR) -I$(INCLUDEDIR)/freetype2 $(TARGETFLAGS) $(DEFINES) -O3
 LDFLAGS := -L$(LIBDIR)
 CC      := clang -arch $(ARCH)
 PKG_CONFIG_LIBDIR := $(BUILD_PREFIX)/lib/pkgconfig
 GIT := git
-CLONE := $(GIT) clone -q
+CLONE := $(GIT) clone -q --depth 1 --single-branch
+CURL := curl --http1.1 -fL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20
 GITHUB := https://github.com
+
+THEORA_REV := 28fd5ec77f0ad0e07a371cef1047828116f6bd8a
+SDL2_REV := d3ac4c3742a405e719071fc4f5a7ba8a125c76a1
+SDL2_IMAGE_REV := d3c6d5963dbe438bcae0e2b6f3d7cfea23d02829
+SDL_SOUND_REV := cfb2533eb3bac3700015cbd87cc623bea1467239
+SDL2_TTF_REV := 0d5909ee2f1c95770d7fe76eb2fbd66ece26a5bf
+FREETYPE_REV := 4d8db130ea4342317581bab65fc96365ce806b77
+RUBY_REV := 4d85560cf65938d7883a323bf553acad1faf5eae
+
+define DOWNLOAD_CACHED
+	@mkdir -p $(DOWNLOAD_CACHE)
+	@if [ -f "$(DOWNLOAD_CACHE)/$(1)" ]; then \
+		echo "Using cached $(1)"; \
+	else \
+		echo "Downloading $(1)"; \
+		$(CURL) -o "$(DOWNLOAD_CACHE)/$(1)" "$(2)"; \
+	fi
+endef
 
 # need to set the build variable because Ruby is picky
 ifeq "$(strip $(shell uname -m))" "arm64"
@@ -76,7 +96,9 @@ $(DOWNLOADS)/theora/configure: $(DOWNLOADS)/theora/autogen.sh
 	./autogen.sh
 
 $(DOWNLOADS)/theora/autogen.sh:
-	$(CLONE) $(GITHUB)/xiph/theora $(DOWNLOADS)/theora
+	$(call DOWNLOAD_CACHED,theora-$(THEORA_REV).tar.gz,https://codeload.github.com/xiph/theora/tar.gz/$(THEORA_REV))
+	mkdir -p $(DOWNLOADS)/theora
+	tar -xzf $(DOWNLOAD_CACHE)/theora-$(THEORA_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/theora
 
 # Vorbis
 libvorbis: init_dirs libogg $(LIBDIR)/libvorbis.a
@@ -188,7 +210,9 @@ $(DOWNLOADS)/sdl2/cmakebuild/Makefile: $(DOWNLOADS)/sdl2/CMakeLists.txt
 	$(CMAKE) -DBUILD_SHARED_LIBS=no
 
 $(DOWNLOADS)/sdl2/CMakeLists.txt:
-	$(CLONE) $(GITHUB)/mkxp-z/SDL $(DOWNLOADS)/sdl2 -b mkxp-z-2.28.1
+	$(call DOWNLOAD_CACHED,sdl2-mkxp-z-$(SDL2_REV).tar.gz,https://codeload.github.com/mkxp-z/SDL/tar.gz/$(SDL2_REV))
+	mkdir -p $(DOWNLOADS)/sdl2
+	tar -xzf $(DOWNLOAD_CACHE)/sdl2-mkxp-z-$(SDL2_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/sdl2
 	
 # SDL_image
 sdl2image: init_dirs sdl2 $(LIBDIR)/libSDL2_image.a
@@ -205,16 +229,38 @@ $(DOWNLOADS)/sdl2_image/cmakebuild/Makefile: $(DOWNLOADS)/sdl2_image/CMakeLists.
 	-DSDL2IMAGE_PNG_SAVE=yes \
 	-DSDL2IMAGE_PNG_SHARED=no \
 	-DSDL2IMAGE_JPG_SHARED=no \
-	-DSDL2IMAGE_JXL=yes \
+	-DSDL2IMAGE_AVIF=no \
+	-DSDL2IMAGE_JXL=no \
 	-DSDL2IMAGE_JXL_SHARED=no \
 	-DSDL2IMAGE_BACKEND_IMAGEIO=no \
 	-DSDL2IMAGE_VENDORED=yes
 	
 
 $(DOWNLOADS)/sdl2_image/CMakeLists.txt:
-	$(CLONE) $(GITHUB)/mkxp-z/SDL_image $(DOWNLOADS)/sdl2_image -b mkxp-z; \
+	$(call DOWNLOAD_CACHED,sdl2_image-mkxp-z-$(SDL2_IMAGE_REV).tar.gz,https://codeload.github.com/mkxp-z/SDL_image/tar.gz/$(SDL2_IMAGE_REV))
+	mkdir -p $(DOWNLOADS)/sdl2_image
+	tar -xzf $(DOWNLOAD_CACHE)/sdl2_image-mkxp-z-$(SDL2_IMAGE_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/sdl2_image
 	cd $(DOWNLOADS)/sdl2_image; \
-	./external/download.sh
+	set -e; \
+	mkdir -p $(DOWNLOAD_CACHE); \
+	for spec in \
+		"external/jpeg https://codeload.github.com/libsdl-org/jpeg/tar.gz/v9e-SDL" \
+		"external/libpng https://codeload.github.com/libsdl-org/libpng/tar.gz/v1.6.37-SDL" \
+		"external/libwebp https://codeload.github.com/libsdl-org/libwebp/tar.gz/1.0.3-SDL" \
+		"external/libtiff https://codeload.github.com/libsdl-org/libtiff/tar.gz/v4.2.0-SDL" \
+		"external/zlib https://codeload.github.com/libsdl-org/zlib/tar.gz/v1.2.12-SDL"; do \
+		set -- $$spec; \
+		name=$$(basename $$1); \
+		cache="$(DOWNLOAD_CACHE)/sdl2_image-$$name.tar.gz"; \
+		mkdir -p $$1; \
+		if [ -f "$$cache" ]; then \
+			echo "Using cached sdl2_image-$$name.tar.gz"; \
+		else \
+			echo "Downloading sdl2_image-$$name.tar.gz"; \
+			$(CURL) -o "$$cache" $$2; \
+		fi; \
+		tar -xzf "$$cache" --strip-components=1 -C $$1; \
+	done
 
 
 # SDL_sound
@@ -232,7 +278,9 @@ $(DOWNLOADS)/sdl_sound/cmakebuild/Makefile: $(DOWNLOADS)/sdl_sound/CMakeLists.tx
 	-DSDLSOUND_DECODER_COREAUDIO=false
 
 $(DOWNLOADS)/sdl_sound/CMakeLists.txt:
-	$(CLONE) $(GITHUB)/mkxp-z/SDL_sound $(DOWNLOADS)/sdl_sound -b git
+	$(call DOWNLOAD_CACHED,sdl_sound-$(SDL_SOUND_REV).tar.gz,https://codeload.github.com/mkxp-z/SDL_sound/tar.gz/$(SDL_SOUND_REV))
+	mkdir -p $(DOWNLOADS)/sdl_sound
+	tar -xzf $(DOWNLOAD_CACHE)/sdl_sound-$(SDL_SOUND_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/sdl_sound
 
 	
 # SDL2 (ttf)
@@ -250,7 +298,9 @@ $(DOWNLOADS)/sdl2_ttf/configure: $(DOWNLOADS)/sdl2_ttf/autogen.sh
 	cd $(DOWNLOADS)/sdl2_ttf; ./autogen.sh
 
 $(DOWNLOADS)/sdl2_ttf/autogen.sh:
-	$(CLONE) $(GITHUB)/mkxp-z/SDL_ttf $(DOWNLOADS)/sdl2_ttf -b mkxp-z
+	$(call DOWNLOAD_CACHED,sdl2_ttf-mkxp-z-$(SDL2_TTF_REV).tar.gz,https://codeload.github.com/mkxp-z/SDL_ttf/tar.gz/$(SDL2_TTF_REV))
+	mkdir -p $(DOWNLOADS)/sdl2_ttf
+	tar -xzf $(DOWNLOAD_CACHE)/sdl2_ttf-mkxp-z-$(SDL2_TTF_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/sdl2_ttf
 
 # Freetype (dependency of SDL2_ttf)
 freetype: init_dirs $(LIBDIR)/libfreetype.a
@@ -267,7 +317,9 @@ $(DOWNLOADS)/freetype/configure: $(DOWNLOADS)/freetype/autogen.sh
 	cd $(DOWNLOADS)/freetype; ./autogen.sh
 
 $(DOWNLOADS)/freetype/autogen.sh:
-	$(CLONE) $(GITHUB)/mkxp-z/freetype2 $(DOWNLOADS)/freetype
+	$(call DOWNLOAD_CACHED,freetype2-$(FREETYPE_REV).tar.gz,https://codeload.github.com/mkxp-z/freetype2/tar.gz/$(FREETYPE_REV))
+	mkdir -p $(DOWNLOADS)/freetype
+	tar -xzf $(DOWNLOAD_CACHE)/freetype2-$(FREETYPE_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/freetype
 
 # OpenAL
 openal: init_dirs libogg $(LIBDIR)/libopenal.a
@@ -297,7 +349,9 @@ $(DOWNLOADS)/openssl/Makefile: $(DOWNLOADS)/openssl/Configure
 	--openssldir="$(BUILD_PREFIX)"
 
 $(DOWNLOADS)/openssl/Configure:
-	$(CLONE) $(GITHUB)/openssl/openssl $(DOWNLOADS)/openssl --single-branch --branch openssl-3.0.12 --depth 1
+	$(call DOWNLOAD_CACHED,openssl-3.0.12.tar.gz,https://codeload.github.com/openssl/openssl/tar.gz/openssl-3.0.12)
+	mkdir -p $(DOWNLOADS)/openssl
+	tar -xzf $(DOWNLOAD_CACHE)/openssl-3.0.12.tar.gz --strip-components=1 -C $(DOWNLOADS)/openssl
 
 # Standard ruby
 ruby: init_dirs openssl $(LIBDIR)/libruby.3.1.dylib
@@ -320,16 +374,21 @@ $(DOWNLOADS)/ruby/configure: $(DOWNLOADS)/ruby/configure.ac
 	cd $(DOWNLOADS)/ruby; autoreconf -i
 
 $(DOWNLOADS)/ruby/configure.ac:
-	$(CLONE) $(GITHUB)/mkxp-z/ruby $(DOWNLOADS)/ruby --single-branch -b mkxp-z-3.1.3 --depth 1;
+	$(call DOWNLOAD_CACHED,ruby-mkxp-z-3.1.3-$(RUBY_REV).tar.gz,https://codeload.github.com/mkxp-z/ruby/tar.gz/$(RUBY_REV))
+	mkdir -p $(DOWNLOADS)/ruby
+	tar -xzf $(DOWNLOAD_CACHE)/ruby-mkxp-z-3.1.3-$(RUBY_REV).tar.gz --strip-components=1 -C $(DOWNLOADS)/ruby
 	sed -i '' '/: $${PRELOADENV=DYLD_INSERT_LIBRARIES}/g' $(DOWNLOADS)/ruby/configure.ac
 
 # ====
 init_dirs:
-	@mkdir -p $(LIBDIR) $(INCLUDEDIR)
+	@mkdir -p $(LIBDIR) $(INCLUDEDIR) $(DOWNLOAD_CACHE)
 
 clean: clean-compiled
 
 powerwash: clean-compiled clean-downloads
+
+clean-cache:
+	-rm -rf download-cache
 
 clean-downloads:
 	-rm -rf downloads/$(HOST)

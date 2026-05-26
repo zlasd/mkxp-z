@@ -483,7 +483,7 @@ static PHYSFS_EnumerateCallbackResult fontSetEnumCB(void *data, const char *dir,
     lowExt[i] = tolower(ext[i]);
   lowExt[i] = '\0';
 
-  if (strcmp(lowExt, "ttf") && strcmp(lowExt, "otf"))
+  if (strcmp(lowExt, "ttf") && strcmp(lowExt, "ttc") && strcmp(lowExt, "otf") && strcmp(lowExt, "otc"))
     return PHYSFS_ENUM_OK;
 
   char filename[512];

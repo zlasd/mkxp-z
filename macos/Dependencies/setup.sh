@@ -2,28 +2,51 @@
 
 HOST = `clang -dumpmachine`.strip
 ARCH = HOST[/x86_64|arm64/]
+REQUESTED_ARCHS = (ENV["MKXPZ_MACOS_ARCHS"] || "arm64").split(/[,\s]+/).reject(&:empty?)
 
 def run_build(arch)
     printf("====================================================\n")
     printf("Building all dependencies. This'll take a while.\n")
 
-    if `xcodebuild -version`.scan(/Xcode (\d+)/)[0][0].to_i >= 12
+    build_arm64 = REQUESTED_ARCHS.include?("arm64") || REQUESTED_ARCHS.include?("universal")
+    build_x86_64 = REQUESTED_ARCHS.include?("x86_64") || REQUESTED_ARCHS.include?("universal")
+
+    if build_arm64 && `xcodebuild -version`.scan(/Xcode (\d+)/)[0][0].to_i >= 12
         printf("Building libraries for Apple Silicon...\n")
         printf("====================================================\n")
         code = system("make everything -f arm64.make")
         return code if !code
     end
-    printf("====================================================\n")
-    printf("Building libraries for Intel...\n")
-    printf("====================================================\n")
-    code = (system("make everything -f x86_64.make"))
-    return code if !code
+
+    if build_x86_64
+        printf("====================================================\n")
+        printf("Building libraries for Intel...\n")
+        printf("====================================================\n")
+        code = (system("make everything -f x86_64.make"))
+        return code if !code
+    end
 
     printf("====================================================\n")
     printf("Performing post-setup...\n")
     printf("====================================================\n")
-    printf("Creating universal libraries ...\n")
-    return system("./make_macuniversal.sh")
+
+    if build_arm64 && build_x86_64
+        printf("Creating universal libraries ...\n")
+        return system("./make_macuniversal.sh")
+    end
+
+    if build_arm64
+        printf("Using Apple Silicon libraries for the project dependency path ...\n")
+        return system("rm -rf build-macosx-universal && ditto build-macosx-arm64 build-macosx-universal")
+    end
+
+    if build_x86_64
+        printf("Using Intel libraries for the project dependency path ...\n")
+        return system("rm -rf build-macosx-universal && ditto build-macosx-x86_64 build-macosx-universal")
+    end
+
+    printf("No mkxp-z macOS dependency architectures requested.\n")
+    return false
 end
 
 def fix_steam(libpath)

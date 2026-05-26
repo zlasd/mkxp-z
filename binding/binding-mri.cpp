@@ -56,6 +56,7 @@ extern "C" {
 #endif
 
 #include <assert.h>
+#include <cstring>
 #include <string>
 #include <zlib.h>
 
@@ -78,6 +79,11 @@ ScriptBinding scriptBindingImpl = {mriBindingExecute, mriBindingTerminate,
     mriBindingReset};
 
 ScriptBinding *scriptBinding = &scriptBindingImpl;
+
+static bool maouSkipRubyCleanup() {
+    const char *value = SDL_getenv("MAOU_MKXPZ_SKIP_RUBY_CLEANUP");
+    return value && *value && std::strcmp(value, "0") != 0;
+}
 
 void tableBindingInit();
 void etcBindingInit();
@@ -1233,7 +1239,8 @@ static void mriBindingExecute() {
          #endif
          */
         showMsg("An error occurred while initializing Ruby. (Invalid JIT settings?)");
-        ruby_cleanup(state);
+        if (!maouSkipRubyCleanup())
+            ruby_cleanup(state);
         shState->rtData().rqTermAck.set();
         return;
     }
@@ -1305,7 +1312,8 @@ static void mriBindingExecute() {
     if (!NIL_P(exc) && !rb_obj_is_kind_of(exc, rb_eSystemExit))
         showExc(exc, btData);
     
-    ruby_cleanup(0);
+    if (!maouSkipRubyCleanup())
+        ruby_cleanup(0);
     
     shState->rtData().rqTermAck.set();
 }

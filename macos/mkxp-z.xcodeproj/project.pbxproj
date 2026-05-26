@@ -1044,7 +1044,7 @@
 		3B1C240C25A1A4C50075EF5D /* steamshim.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = steamshim.xcconfig; path = config/steamshim.xcconfig; sourceTree = "<group>"; };
 		3B1C241125A1A7120075EF5D /* libsteam_api.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsteam_api.dylib; path = Dependencies/Frameworks/steam/sdk/redistributable_bin/osx/libsteam_api.dylib; sourceTree = "<group>"; };
 		3B1C243E25A1B8D20075EF5D /* steam_appid.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = steam_appid.txt; path = config/steam_appid.txt; sourceTree = "<group>"; };
-		3B251DA526DA2CFA00E5D09B /* 3.1.0 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = 3.1.0; path = "Dependencies/build-macosx-x86_64/lib/ruby/3.1.0"; sourceTree = "<group>"; };
+		3B251DA526DA2CFA00E5D09B /* 3.1.0 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = 3.1.0; path = "Dependencies/build-macosx-universal/lib/ruby/3.1.0"; sourceTree = "<group>"; };
 		3B312841259E7DC1002EAB43 /* miniffi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = miniffi.h; sourceTree = "<group>"; };
 		3B312842259E7DC1002EAB43 /* miniffi.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = miniffi.cpp; sourceTree = "<group>"; };
 		3B3F7D1725B19DEC00EA5F1C /* settingsmenu.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = settingsmenu.xib; path = views/settingsmenu.xib; sourceTree = "<group>"; };
@@ -1315,10 +1315,6 @@
 				3BC65E202584F4290063AFF1 /* libpixman-1.a in Frameworks */,
 				3BC65E062584F3AD0063AFF1 /* libiconv.tbd in Frameworks */,
 				3BC65E262584F4290063AFF1 /* libpng16.a in Frameworks */,
-				B70841599CC887B2CF44195E /* libjxl_dec.a in Frameworks */,
-				9DBD4B93938DE5373F0B275B /* libbrotlidec-static.a in Frameworks */,
-				3389416F9825F408A40824F3 /* libbrotlicommon-static.a in Frameworks */,
-				F7CA439883B85807B560AF67 /* libhwy.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

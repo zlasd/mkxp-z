@@ -6,16 +6,110 @@
 //
 
 #import <AppKit/AppKit.h>
+#import <dispatch/dispatch.h>
+#import <SDL.h>
 #import <SDL_syswm.h>
 
 #import <SDL_filesystem.h>
+#import <mach-o/dyld.h>
 
 #import "filesystemImpl.h"
 #import "util/exception.h"
 
+#include <vector>
+
 #define PATHTONS(str) [NSFileManager.defaultManager stringWithFileSystemRepresentation:str length:strlen(str)]
 
 #define NSTOPATH(str) [NSFileManager.defaultManager fileSystemRepresentationWithPath:str]
+
+extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView) {
+    @autoreleasepool {
+        if (window == nullptr || nativeView == nullptr) {
+            return;
+        }
+
+        SDL_SysWMinfo windowInfo{};
+        SDL_VERSION(&windowInfo.version);
+        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
+            return;
+        }
+
+        NSWindow *sdlWindow = windowInfo.info.cocoa.window;
+        NSView *sdlView = sdlWindow.contentView;
+        NSView *hostView = (__bridge NSView *)nativeView;
+        if (sdlView == nil || hostView == nil) {
+            return;
+        }
+
+        [sdlView removeFromSuperview];
+        sdlView.frame = hostView.bounds;
+        sdlView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [hostView addSubview:sdlView positioned:NSWindowBelow relativeTo:nil];
+        [sdlWindow orderOut:nil];
+    }
+}
+
+extern "C" SDL_Window *maou_mkxpz_create_embedded_sdl_window(const char *title,
+                                                             int width,
+                                                             int height,
+                                                             Uint32 flags,
+                                                             void *nativeView) {
+    __block SDL_Window *window = nullptr;
+    void (^createWindow)(void) = ^{
+        window = SDL_CreateWindow(title, 0, 0, width, height, flags | SDL_WINDOW_BORDERLESS);
+        maou_mkxpz_embed_sdl_window(window, nativeView);
+    };
+
+    if ([NSThread isMainThread]) {
+        createWindow();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), createWindow);
+    }
+
+    return window;
+}
+
+static NSString *mkxpExecutableResourcePath() {
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::vector<char> path(size + 1);
+    if (_NSGetExecutablePath(path.data(), &size) != 0) {
+        return nil;
+    }
+
+    NSString *executablePath = [NSFileManager.defaultManager
+        stringWithFileSystemRepresentation:path.data()
+                                    length:strlen(path.data())];
+    NSString *resourcesPath = [[executablePath stringByDeletingLastPathComponent]
+        stringByAppendingPathComponent:@"../Resources"];
+    return [resourcesPath stringByStandardizingPath];
+}
+
+static NSString *mkxpResourcePath() {
+    const char *maouResourcePath = SDL_getenv("MAOU_MKXPZ_RESOURCE_PATH");
+    if (maouResourcePath && *maouResourcePath) {
+        NSString *resourcePath = PATHTONS(maouResourcePath);
+        NSString *assetBundle = [resourcePath stringByAppendingPathComponent:@"Assets.bundle"];
+        if ([NSFileManager.defaultManager fileExistsAtPath:assetBundle]) {
+            return resourcePath;
+        }
+    }
+
+    NSString *bundleResourcePath = NSBundle.mainBundle.resourcePath;
+    if (bundleResourcePath != nil) {
+        NSString *assetBundle = [bundleResourcePath stringByAppendingPathComponent:@"Assets.bundle"];
+        if ([NSFileManager.defaultManager fileExistsAtPath:assetBundle]) {
+            return bundleResourcePath;
+        }
+    }
+
+    NSString *executableResourcePath = mkxpExecutableResourcePath();
+    if (executableResourcePath != nil) {
+        return executableResourcePath;
+    }
+
+    return bundleResourcePath;
+}
 
 bool filesystemImpl::fileExists(const char *path) {
     @autoreleasepool{
@@ -57,22 +151,32 @@ std::string filesystemImpl::normalizePath(const char *path, bool preferred, bool
             nspath = [nspath stringByReplacingOccurrencesOfString:pwd withString:@""];
         }
         nspath = [nspath stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+        nspath = [nspath precomposedStringWithCanonicalMapping];
+        if (!absolute) {
+            return std::string(nspath.UTF8String);
+        }
         return std::string(NSTOPATH(nspath));
     }
 }
 
 std::string filesystemImpl::getDefaultGameRoot() {
     @autoreleasepool {
-        NSString *p = [NSString stringWithFormat: @"%@/%s", NSBundle.mainBundle.bundlePath, "Contents/Game"];
+        NSString *bundlePath = NSBundle.mainBundle.bundlePath;
+        if (bundlePath == nil || ![NSFileManager.defaultManager fileExistsAtPath:[bundlePath stringByAppendingPathComponent:@"Contents/Game"]]) {
+            NSString *resourcePath = mkxpResourcePath();
+            bundlePath = [[resourcePath stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+        }
+        NSString *p = [NSString stringWithFormat: @"%@/%s", bundlePath, "Contents/Game"];
         return std::string(NSTOPATH(p));
     }
 }
 
 NSString *getPathForAsset_internal(const char *baseName, const char *ext) {
+    NSString *resourcePath = mkxpResourcePath();
     NSBundle *assetBundle = [NSBundle bundleWithPath:
                              [NSString stringWithFormat:
                               @"%@/%s",
-                              NSBundle.mainBundle.resourcePath,
+                              resourcePath,
                               "Assets.bundle"
                              ]
                             ];
@@ -96,6 +200,8 @@ std::string filesystemImpl::getPathForAsset(const char *baseName, const char *ex
 std::string filesystemImpl::contentsOfAssetAsString(const char *baseName, const char *ext) {
     @autoreleasepool {
         NSString *path = getPathForAsset_internal(baseName, ext);
+        if (path == nil)
+            throw Exception(Exception::NoFileError, "Failed to find asset %s.%s", baseName, ext);
         NSString *fileContents = [NSString stringWithContentsOfFile: path];
         
         // This should never fail

@@ -395,8 +395,13 @@ class Win32API
 		end
 
 		if TOLERATE_ERRORS
-			System.puts("[Win32API] [#{@dll}:#{@func}] #{args.to_s}") if !@called
-			@called = true
+			@@mkxp_missing_logged ||= {}
+			log_key = "#{@dll}:#{@func}"
+			if !@called && !@@mkxp_missing_logged[log_key]
+				System.puts("[Win32API] [#{@dll}:#{@func}] #{args.to_s}")
+				@@mkxp_missing_logged[log_key] = true
+			end
+			@called = true unless frozen?
 			return 0
 		else
 			raise RuntimeError, "[Win32API] [#{@dll}:#{@func}] #{args.to_s}"

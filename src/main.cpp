@@ -32,6 +32,8 @@
 #include <SDL_ttf.h>
 
 #include <assert.h>
+#include <cstdlib>
+#include <climits>
 #include <string.h>
 #include <string>
 #include <unistd.h>
@@ -40,6 +42,7 @@
 #include "binding.h"
 #include "sharedstate.h"
 #include "eventthread.h"
+#include "maou_mkxpz.h"
 #include "util/debugwriter.h"
 #include "util/exception.h"
 #include "display/gl/gl-debug.h"
@@ -67,6 +70,34 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #include "steamshim_child.h"
 #endif
 
+static bool readMaouWindowInt(const char *name, int &value)
+{
+    const char *raw = SDL_getenv(name);
+    if (!raw || !*raw)
+        return false;
+
+    char *end = 0;
+    long parsed = strtol(raw, &end, 10);
+    if (!end || *end || parsed < INT_MIN || parsed > INT_MAX)
+        return false;
+
+    value = static_cast<int>(parsed);
+    return true;
+}
+
+static bool readMaouWindowRect(int &x, int &y, int &w, int &h)
+{
+    return readMaouWindowInt("MAOU_MKXP_WINDOW_X", x)
+        && readMaouWindowInt("MAOU_MKXP_WINDOW_Y", y)
+        && readMaouWindowInt("MAOU_MKXP_WINDOW_W", w)
+        && readMaouWindowInt("MAOU_MKXP_WINDOW_H", h)
+        && w > 0
+        && h > 0;
+}
+
+static EventThread *maouActiveEventThread = 0;
+static SDL_Window *maouActiveWindow = 0;
+
 #ifdef MKXPZ_BUILD_XCODE
 #include <Availability.h>
 #include "TouchBar.h"
@@ -83,6 +114,14 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 static void rgssThreadError(RGSSThreadData *rtData, const std::string &msg);
 static void showInitError(const std::string &msg);
+#ifdef __APPLE__
+extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView);
+extern "C" SDL_Window *maou_mkxpz_create_embedded_sdl_window(const char *title,
+                                                             int width,
+                                                             int height,
+                                                             Uint32 flags,
+                                                             void *nativeView);
+#endif
 
 static inline const char *glGetStringInt(GLenum name) {
   return (const char *)gl.GetString(name);
@@ -215,7 +254,55 @@ static void setupWindowIcon(const Config &conf, SDL_Window *win) {
   }
 }
 
-int main(int argc, char *argv[]) {
+void maou_mkxpz_request_stop(void)
+{
+    if (maouActiveEventThread)
+        maouActiveEventThread->requestTerminate();
+
+    SDL_Event quitEvent;
+    memset(&quitEvent, 0, sizeof(quitEvent));
+    quitEvent.type = SDL_QUIT;
+    SDL_PushEvent(&quitEvent);
+}
+
+void maou_mkxpz_send_key(int sdlScancode, int keyDown, int ctrl)
+{
+    SDL_Event event;
+    memset(&event, 0, sizeof(event));
+    event.type = keyDown ? SDL_KEYDOWN : SDL_KEYUP;
+    event.key.type = event.type;
+    event.key.state = keyDown ? SDL_PRESSED : SDL_RELEASED;
+    event.key.keysym.scancode = static_cast<SDL_Scancode>(sdlScancode);
+    event.key.keysym.mod = ctrl ? KMOD_CTRL : KMOD_NONE;
+    SDL_PushEvent(&event);
+}
+
+void maou_mkxpz_resize(int width, int height)
+{
+    if (!maouActiveWindow || width <= 0 || height <= 0)
+        return;
+
+    SDL_SetWindowSize(maouActiveWindow, width, height);
+
+    SDL_Event event;
+    memset(&event, 0, sizeof(event));
+    event.type = SDL_WINDOWEVENT;
+    event.window.type = SDL_WINDOWEVENT;
+    event.window.windowID = SDL_GetWindowID(maouActiveWindow);
+    event.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
+    event.window.data1 = width;
+    event.window.data2 = height;
+    SDL_PushEvent(&event);
+}
+
+int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
+    int argc = options ? options->argc : 0;
+    char **argv = options ? options->argv : 0;
+    const char *argv0 = argc > 0 && argv && argv[0] ? argv[0] : "mkxp-z";
+    const char *workingDirectory = options ? options->workingDirectory : 0;
+    const char *resourceDirectory = options ? options->resourceDirectory : 0;
+    void *nativeView = options ? options->nativeView : 0;
+
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
 
@@ -235,6 +322,15 @@ int main(int argc, char *argv[]) {
       showInitError("Error allocating SDL user events");
       return 0;
     }
+
+#ifdef WORKDIR_CURRENT
+    if (workingDirectory && *workingDirectory)
+      mkxp_fs::setCurrentDirectory(workingDirectory);
+#endif
+    if (resourceDirectory && *resourceDirectory)
+      SDL_setenv("MAOU_MKXPZ_RESOURCE_PATH", resourceDirectory, 1);
+    if (nativeView)
+      SDL_setenv("MAOU_MKXPZ_SKIP_RUBY_CLEANUP", "1", 1);
 
 #ifndef WORKDIR_CURRENT
     char dataDir[512]{};
@@ -337,10 +433,18 @@ int main(int argc, char *argv[]) {
     SDL_Window *win;
     Uint32 winFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_ALLOW_HIGHDPI;
 
-    if (conf.winResizable)
+    bool maouEmbeddedWindow = false;
+#ifdef MKXPZ_BUILD_XCODE
+    const char *maouEmbeddedWindowEnv = SDL_getenv("MAOU_MKXP_EMBED_WINDOW");
+    maouEmbeddedWindow = maouEmbeddedWindowEnv && !strcmp(maouEmbeddedWindowEnv, "1");
+#endif
+
+    if (conf.winResizable && !maouEmbeddedWindow)
       winFlags |= SDL_WINDOW_RESIZABLE;
     if (conf.fullscreen)
       winFlags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+    if (maouEmbeddedWindow)
+      winFlags |= SDL_WINDOW_BORDERLESS;
     
 #ifdef GLES2_HEADER
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -355,9 +459,40 @@ int main(int argc, char *argv[]) {
 #endif
 #endif
     
-    win = SDL_CreateWindow(conf.windowTitle.c_str(), SDL_WINDOWPOS_UNDEFINED,
-                           SDL_WINDOWPOS_UNDEFINED, conf.defScreenW,
-                           conf.defScreenH, winFlags);
+    int maouWindowX = SDL_WINDOWPOS_UNDEFINED;
+    int maouWindowY = SDL_WINDOWPOS_UNDEFINED;
+    int maouWindowW = conf.defScreenW;
+    int maouWindowH = conf.defScreenH;
+    if (maouEmbeddedWindow) {
+      int configuredX = 0;
+      int configuredY = 0;
+      int configuredW = 0;
+      int configuredH = 0;
+      if (readMaouWindowRect(configuredX, configuredY, configuredW, configuredH)) {
+        maouWindowX = configuredX;
+        maouWindowY = configuredY;
+        maouWindowW = configuredW;
+        maouWindowH = configuredH;
+      }
+    }
+
+    if (nativeView) {
+      int viewWidth = options && options->viewWidth > 0 ? options->viewWidth : maouWindowW;
+      int viewHeight = options && options->viewHeight > 0 ? options->viewHeight : maouWindowH;
+#ifdef __APPLE__
+      win = maou_mkxpz_create_embedded_sdl_window(conf.windowTitle.c_str(),
+                                                  viewWidth,
+                                                  viewHeight,
+                                                  winFlags,
+                                                  nativeView);
+#else
+      win = SDL_CreateWindow(conf.windowTitle.c_str(), 0, 0, viewWidth, viewHeight, winFlags | SDL_WINDOW_BORDERLESS);
+#endif
+    } else {
+      win = SDL_CreateWindow(conf.windowTitle.c_str(), maouWindowX,
+                             maouWindowY, maouWindowW,
+                             maouWindowH, winFlags);
+    }
 
     if (!win) {
       showInitError(std::string("Error creating window: ") + SDL_GetError());
@@ -431,6 +566,8 @@ int main(int argc, char *argv[]) {
       conf.syncToRefreshrate = false;
 
     EventThread eventThread;
+    maouActiveEventThread = &eventThread;
+    maouActiveWindow = win;
 
 #ifndef MKXPZ_INIT_GL_LATER
     SDL_GLContext glCtx = initGL(win, conf, 0);
@@ -438,7 +575,7 @@ int main(int argc, char *argv[]) {
     SDL_GLContext glCtx = NULL;
 #endif
 
-    RGSSThreadData rtData(&eventThread, argv[0], win, alcDev, mode.refresh_rate,
+    RGSSThreadData rtData(&eventThread, argv0, win, alcDev, mode.refresh_rate,
                           mkxp_sys::getScalingFactor(), conf, glCtx);
 
     int winW, winH, drwW, drwH;
@@ -453,7 +590,8 @@ int main(int argc, char *argv[]) {
     
 #ifdef MKXPZ_BUILD_XCODE
     // Create Touch Bar
-    initTouchBar(win, conf);
+    if (!nativeView)
+      initTouchBar(win, conf);
 #endif
 
     /* Start RGSS thread */
@@ -461,6 +599,8 @@ int main(int argc, char *argv[]) {
 
     /* Start event processing */
     eventThread.process(rtData);
+    maouActiveEventThread = 0;
+    maouActiveWindow = 0;
 
     /* Request RGSS thread to stop */
     rtData.rqTerm.set();
@@ -518,6 +658,13 @@ int main(int argc, char *argv[]) {
     SDL_Quit();
 
     return 0;
+}
+
+int main(int argc, char *argv[]) {
+    MaouMkxpzRunOptions options{};
+    options.argc = argc;
+    options.argv = argv;
+    return maou_mkxpz_run(&options);
 }
 
 static SDL_GLContext initGL(SDL_Window *win, Config &conf,
