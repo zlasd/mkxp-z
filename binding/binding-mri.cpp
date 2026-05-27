@@ -65,6 +65,10 @@ extern "C" {
 #include <SDL_loadso.h>
 #include <SDL_power.h>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 extern const char module_rpg1[];
 extern const char module_rpg2[];
 extern const char module_rpg3[];
@@ -663,6 +667,10 @@ RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(mkxpLaunch) {
     RB_UNUSED_PARAM;
+
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    throw Exception(Exception::MKXPError, "Launching external applications is not supported on iOS");
+#else
     
     VALUE cmdname, args;
     
@@ -698,6 +706,7 @@ RB_METHOD_GUARD(mkxpLaunch) {
     }
     
     return RUBY_Qnil;
+#endif
 }
 RB_METHOD_GUARD_END
 

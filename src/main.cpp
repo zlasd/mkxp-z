@@ -39,6 +39,10 @@
 #include <unistd.h>
 #include <regex>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include "binding.h"
 #include "sharedstate.h"
 #include "eventthread.h"
@@ -98,7 +102,7 @@ static bool readMaouWindowRect(int &x, int &y, int &w, int &h)
 static EventThread *maouActiveEventThread = 0;
 static SDL_Window *maouActiveWindow = 0;
 
-#ifdef MKXPZ_BUILD_XCODE
+#if defined(MKXPZ_BUILD_XCODE) && (!defined(TARGET_OS_IPHONE) || !TARGET_OS_IPHONE)
 #include <Availability.h>
 #include "TouchBar.h"
 #if !defined(__MAC_10_15) || __MAC_OS_X_VERSION_MAX_ALLOWED < __MAC_10_15
@@ -588,7 +592,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     /* Load and post key bindings */
     rtData.bindingUpdateMsg.post(loadBindings(conf));
     
-#ifdef MKXPZ_BUILD_XCODE
+#if defined(MKXPZ_BUILD_XCODE) && !TARGET_OS_IPHONE
     // Create Touch Bar
     if (!nativeView)
       initTouchBar(win, conf);
@@ -660,12 +664,14 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     return 0;
 }
 
+#ifndef MAOU_MKXPZ_EMBEDDED_ONLY
 int main(int argc, char *argv[]) {
     MaouMkxpzRunOptions options{};
     options.argc = argc;
     options.argv = argv;
     return maou_mkxpz_run(&options);
 }
+#endif
 
 static SDL_GLContext initGL(SDL_Window *win, Config &conf,
                             RGSSThreadData *threadData) {
