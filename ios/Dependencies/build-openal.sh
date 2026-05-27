@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+configure_platform "${1:-iphoneos}"
+
+run_cmake_dep openal "$(require_source openal)" \
+    -DLIBTYPE=STATIC \
+    -DALSOFT_EXAMPLES=OFF \
+    -DALSOFT_UTILS=OFF \
+    -DALSOFT_TESTS=OFF \
+    -DALSOFT_INSTALL=ON \
+    -DALSOFT_INSTALL_CONFIG=OFF \
+    -DALSOFT_INSTALL_HRTF_DATA=OFF \
+    -DALSOFT_INSTALL_AMBDEC_PRESETS=OFF \
+    -DALSOFT_BACKEND_COREAUDIO=ON \
+    -DALSOFT_REQUIRE_COREAUDIO=ON \
+    -DALSOFT_BACKEND_WAVE=OFF \
+    -DALSOFT_BACKEND_JACK=OFF \
+    -DALSOFT_BACKEND_PORTAUDIO=OFF \
+    -DALSOFT_BACKEND_SDL2=OFF \
+    -DALSOFT_BACKEND_SDL3=OFF

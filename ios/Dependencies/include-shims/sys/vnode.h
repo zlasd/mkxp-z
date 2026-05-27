@@ -1,0 +1,28 @@
+#ifndef MAOU_IOS_SYS_VNODE_H
+#define MAOU_IOS_SYS_VNODE_H
+
+/*
+ * iOS SDKs do not ship sys/vnode.h. Ruby's Darwin dir.c includes it
+ * unconditionally and only needs these enum constants for getattrlist()
+ * results. Keep the values aligned with the macOS SDK.
+ */
+enum vtype {
+    VNON,
+    VREG, VDIR, VBLK, VCHR, VLNK,
+    VSOCK, VFIFO, VBAD, VSTR, VCPLX
+};
+
+enum vtagtype {
+    VT_NON,
+    VT_UFS,
+    VT_NFS, VT_MFS, VT_MSDOSFS, VT_LFS,
+    VT_LOFS, VT_FDESC, VT_PORTAL, VT_NULL, VT_UMAP,
+    VT_KERNFS, VT_PROCFS, VT_AFS, VT_ISOFS, VT_MOCKFS,
+    VT_HFS, VT_ZFS, VT_DEVFS, VT_WEBDAV, VT_UDF,
+    VT_AFP, VT_CDDA, VT_CIFS, VT_OTHER, VT_APFS,
+    VT_LOCKERFS, VT_BINDFS,
+};
+
+#define HAVE_VT_LOCKERFS 1
+
+#endif

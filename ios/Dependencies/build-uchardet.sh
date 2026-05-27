@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+configure_platform "${1:-iphoneos}"
+
+UCHARDDET_SOURCE="$(require_source uchardet)"
+BUILD_DIR="$BUILD_ROOT/uchardet-$PLATFORM"
+
+cmake \
+    -S "$UCHARDDET_SOURCE" \
+    -B "$BUILD_DIR" \
+    -G "Unix Makefiles" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DCMAKE_SYSTEM_NAME=iOS \
+    -DCMAKE_OSX_SYSROOT="$SDK" \
+    -DCMAKE_OSX_ARCHITECTURES="$ARCHS" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
+    -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
+    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_FLAGS="-DGLES_SILENCE_DEPRECATION" \
+    -DCMAKE_CXX_FLAGS="-DGLES_SILENCE_DEPRECATION" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_BINARY=OFF \
+    -DCHECK_SSE2=OFF
+
+cmake --build "$BUILD_DIR" --target libuchardet -j"$NPROC"
+cmake --install "$BUILD_DIR"
+
+echo "==> Built uchardet for $PLATFORM at $PREFIX"

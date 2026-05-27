@@ -34,13 +34,15 @@ when it is non-empty.
 
 ## Current dependency build status
 
-SDL2 can be built as an iOS static dependency with:
+The dependency set can be built as static iOS libraries with:
 
 ```sh
-./ios/Dependencies/build-sdl2.sh iphoneos
-./ios/Dependencies/build-sdl2.sh iphonesimulator
+./ios/Dependencies/build-all.sh iphoneos
+./ios/Dependencies/build-all.sh iphonesimulator
 ```
 
 The script writes generated files under `ios/Dependencies/build/`, which is not
-tracked. The remaining dependencies still need equivalent iOS build scripts
-before mkxp-z itself can be linked into Maou.
+tracked. This currently covers SDL2, SDL2_image, SDL2_ttf, SDL2_sound, OpenAL,
+PhysFS, FreeType, libpng, pixman, ogg, vorbis, theora, uchardet, and static Ruby
+without the OpenSSL extension. mkxp-z's final static runtime target still needs
+to be linked before Maou can start VX Ace games through the embedded bridge.
