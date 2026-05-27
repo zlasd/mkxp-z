@@ -234,7 +234,7 @@ std::string filesystemImpl::contentsOfAssetAsString(const char *baseName, const 
 
 std::string filesystemImpl::getResourcePath() {
     @autoreleasepool {
-        return std::string(NSTOPATH(NSBundle.mainBundle.resourcePath));
+        return std::string(NSTOPATH(mkxpResourcePath()));
     }
 }
 
