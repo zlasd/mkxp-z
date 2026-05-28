@@ -228,6 +228,7 @@ static void printRgssVersion(int ver) {
 }
 
 static void rgssThreadError(RGSSThreadData *rtData, const std::string &msg) {
+  Debug() << "RGSS thread error:" << msg;
   rtData->rgssErrorMsg = msg;
   rtData->ethread->requestTerminate();
   rtData->rqTermAck.set();
@@ -306,6 +307,12 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     const char *workingDirectory = options ? options->workingDirectory : 0;
     const char *resourceDirectory = options ? options->resourceDirectory : 0;
     void *nativeView = options ? options->nativeView : 0;
+    Debug() << "maou_mkxpz_run start argc=" << argc
+            << "workingDirectory=" << (workingDirectory ? workingDirectory : "(null)")
+            << "resourceDirectory=" << (resourceDirectory ? resourceDirectory : "(null)")
+            << "nativeView=" << (nativeView ? "yes" : "no")
+            << "viewWidth=" << (options ? options->viewWidth : 0)
+            << "viewHeight=" << (options ? options->viewHeight : 0);
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
@@ -321,6 +328,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
       showInitError(std::string("Error initializing SDL: ") + SDL_GetError());
       return 0;
     }
+    Debug() << "SDL initialized";
 
     if (!EventThread::allocUserEvents()) {
       showInitError("Error allocating SDL user events");
@@ -335,6 +343,8 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
       SDL_setenv("MAOU_MKXPZ_RESOURCE_PATH", resourceDirectory, 1);
     if (nativeView)
       SDL_setenv("MAOU_MKXPZ_SKIP_RUBY_CLEANUP", "1", 1);
+    Debug() << "mkxp currentDirectory=" << mkxp_fs::getCurrentDirectory()
+            << "resourcePath=" << mkxp_fs::getResourcePath();
 
 #ifndef WORKDIR_CURRENT
     char dataDir[512]{};
@@ -354,6 +364,14 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     /* now we load the config */
     Config conf;
     conf.read(argc, argv);
+    Debug() << "Config loaded"
+            << "title=" << conf.game.title
+            << "gameFolder=" << conf.gameFolder
+            << "currentDirectory=" << mkxp_fs::getCurrentDirectory()
+            << "rgssVersion=" << conf.rgssVersion
+            << "preloadScripts=" << conf.preloadScripts.size()
+            << "postloadScripts=" << conf.postloadScripts.size()
+            << "rtpCount=" << conf.rtps.size();
 
 #if defined(__WIN32__)
     // Create a debug console in debug mode
@@ -396,6 +414,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
       return 0;
     }
+    Debug() << "SDL_image initialized";
 
     if (TTF_Init() < 0) {
       showInitError(std::string("Error initializing SDL_ttf: ") +
@@ -409,6 +428,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
       return 0;
     }
+    Debug() << "SDL_ttf initialized";
 
     if (Sound_Init() == 0) {
       showInitError(std::string("Error initializing SDL_sound: ") +
@@ -423,6 +443,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
       return 0;
     }
+    Debug() << "SDL_sound initialized";
 #if defined(__WIN32__)
     WSAData wsadata = {0};
     if (WSAStartup(0x101, &wsadata) || wsadata.wVersion != 0x101) {
@@ -506,6 +527,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 #endif
       return 0;
     }
+    Debug() << "SDL window created";
     
 #ifdef MKXPZ_BUILD_XCODE
     {
@@ -561,6 +583,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 #endif
       return 0;
     }
+    Debug() << "OpenAL device opened";
 
     SDL_DisplayMode mode;
     SDL_GetDisplayMode(0, 0, &mode);
@@ -578,6 +601,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 #else
     SDL_GLContext glCtx = NULL;
 #endif
+    Debug() << "GL context initial mode=" << (glCtx ? "ready" : "deferred");
 
     RGSSThreadData rtData(&eventThread, argv0, win, alcDev, mode.refresh_rate,
                           mkxp_sys::getScalingFactor(), conf, glCtx);
@@ -600,9 +624,12 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
     /* Start RGSS thread */
     SDL_Thread *rgssThread = SDL_CreateThread(rgssThreadFun, "rgss", &rtData);
+    Debug() << "RGSS thread created";
 
     /* Start event processing */
+    Debug() << "EventThread processing begin";
     eventThread.process(rtData);
+    Debug() << "EventThread processing end";
     maouActiveEventThread = 0;
     maouActiveWindow = 0;
 

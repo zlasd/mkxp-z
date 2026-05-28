@@ -1047,6 +1047,7 @@ static void runRMXPScripts(BacktraceData &btData) {
     {
         if (shState->rtData().rqTerm)
             break;
+        Debug() << "Running preload script" << *i;
         runCustomScript(*i);
     }
     
@@ -1198,6 +1199,7 @@ static void mriBindingExecute() {
     ruby_sysinit(&argc, &argv);
     
     RUBY_INIT_STACK;
+    Debug() << "Ruby init begin";
     ruby_init();
     
     std::vector<const char*> rubyArgsC{"mkxp-z"};
@@ -1255,6 +1257,7 @@ static void mriBindingExecute() {
     }
     rb_enc_set_default_internal(rb_enc_from_encoding(rb_utf8_encoding()));
     rb_enc_set_default_external(rb_enc_from_encoding(rb_utf8_encoding()));
+    Debug() << "Ruby init complete";
 #else
     ruby_init();
     rb_eval_string("$KCODE='U'");
@@ -1300,6 +1303,7 @@ static void mriBindingExecute() {
         rb_ary_push(lpaths, rb_utf8_str_new_cstr(mkxp_fs::getCurrentDirectory().c_str()));
     }
 #endif
+    Debug() << "Ruby load path configured count=" << RARRAY_LEN(lpaths);
     
     RbData rbData;
     shState->setBindingData(&rbData);
@@ -1308,10 +1312,13 @@ static void mriBindingExecute() {
     mriBindingInit();
     
     std::string &customScript = conf.customScript;
-    if (!customScript.empty())
+    if (!customScript.empty()) {
+        Debug() << "Running custom script" << customScript;
         runCustomScript(customScript);
-    else
+    } else {
+        Debug() << "Running RGSS scripts";
         runRMXPScripts(btData);
+    }
     
 #if RAPI_FULL > 187
     VALUE exc = rb_errinfo();
@@ -1324,6 +1331,7 @@ static void mriBindingExecute() {
     if (!maouSkipRubyCleanup())
         ruby_cleanup(0);
     
+    Debug() << "Ruby binding execute complete";
     shState->rtData().rqTermAck.set();
 }
 

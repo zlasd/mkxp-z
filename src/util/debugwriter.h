@@ -25,6 +25,8 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <cstdio>
+#include <cstdlib>
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -61,11 +63,20 @@ public:
 
 	~Debug()
 	{
+		const std::string line = buf.str();
 #ifdef __ANDROID__
-		__android_log_write(ANDROID_LOG_DEBUG, "mkxp", buf.str().c_str());
+		__android_log_write(ANDROID_LOG_DEBUG, "mkxp", line.c_str());
 #else
-		std::cerr << buf.str() << std::endl;
+		std::cerr << line << std::endl;
 #endif
+		const char *logPath = std::getenv("MAOU_LOG_FILE");
+		if (logPath && *logPath) {
+			FILE *file = std::fopen(logPath, "a");
+			if (file) {
+				std::fprintf(file, "[mkxp-z] %s\n", line.c_str());
+				std::fclose(file);
+			}
+		}
 	}
 
 private:
