@@ -56,6 +56,7 @@ extern "C" {
 #endif
 
 #include <assert.h>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <zlib.h>
@@ -64,6 +65,10 @@ extern "C" {
 #include <SDL_filesystem.h>
 #include <SDL_loadso.h>
 #include <SDL_power.h>
+
+#ifdef MAOU_MKXPZ_LINKED_ZLIB_EXTENSION
+extern "C" void Init_zlib(void);
+#endif
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -294,14 +299,25 @@ static void mriBindingInit() {
     rb_str_freeze(vers);
     rb_define_const(mod, "VERSION", vers);
     
-    // Automatically load zlib if it's present -- the correct way this time
     int state;
+#ifdef MAOU_MKXPZ_LINKED_ZLIB_EXTENSION
+    if (!rb_const_defined(rb_cObject, rb_intern("Zlib"))) {
+        Init_zlib();
+        Debug() << "Initialized linked Ruby Zlib extension";
+    }
+    rb_eval_string_protect("$LOADED_FEATURES << 'zlib' unless $LOADED_FEATURES.include?('zlib')", &state);
+    if (state) {
+        Debug() << "Could not mark linked Zlib extension as loaded.";
+    }
+#else
+    // Automatically load zlib if it's present -- the correct way this time
     rb_eval_string_protect("require('zlib') if !Kernel.const_defined?(:Zlib)", &state);
     if (state) {
         Debug() << "Could not load Zlib. If this is important, make sure Ruby was built with static extensions, or that"
         << ((MKXPZ_PLATFORM == MKXPZ_PLATFORM_MACOS) ? "zlib.bundle" : "zlib.so")
         << "is present and reachable by Ruby's loadpath.";
     }
+#endif
     
     // Set $stdout and its ilk accordingly on Windows
     // I regret teaching you that word
@@ -806,10 +822,31 @@ static VALUE rgssMainCb(VALUE block) {
     return Qnil;
 }
 
+static void debugRubyException(VALUE exc, const char *context) {
+    if (NIL_P(exc))
+        return;
+
+    VALUE name = rb_class_path(rb_obj_class(exc));
+    VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
+    Debug() << context << StringValueCStr(name) << StringValueCStr(msg);
+
+    VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
+    if (NIL_P(bt) || !RB_TYPE_P(bt, T_ARRAY))
+        return;
+
+    const long count = std::min<long>(RARRAY_LEN(bt), 20);
+    for (long i = 0; i < count; ++i) {
+        VALUE entry = rb_ary_entry(bt, i);
+        if (!NIL_P(entry))
+            Debug() << context << "backtrace" << StringValueCStr(entry);
+    }
+}
+
 static VALUE rgssMainRescue(VALUE arg, VALUE exc) {
     VALUE *excRet = (VALUE *)arg;
     
     *excRet = exc;
+    debugRubyException(exc, "RGSS main rescued exception");
     
     return Qnil;
 }
@@ -1105,9 +1142,14 @@ static void runRMXPScripts(BacktraceData &btData) {
             
             int state;
             
+            Debug() << "Running RGSS script" << buf << "(" << scriptName << ")";
             evalString(string, fname, &state);
-            if (state)
+            if (state) {
+                Debug() << "RGSS script failed" << buf << "(" << scriptName << ")";
+                debugRubyException(rb_errinfo(), "RGSS script exception");
                 break;
+            }
+            Debug() << "Finished RGSS script" << buf << "(" << scriptName << ")";
         }
         
         VALUE exc = rb_gv_get("$!");

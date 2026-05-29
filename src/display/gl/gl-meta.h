@@ -69,6 +69,7 @@ int blitScaleIsSpecial(TEXFBO &target, bool targetPreferHires, const IntRect &ta
 int smoothScalingMethod(int scaleIsSpecial);
 void blitBegin(TEXFBO &target, bool preferHires = false, int scaleIsOne = 0);
 void blitBeginScreen(const Vec2i &size, int scaleIsOne = 0);
+void blitBeginScreenFramebuffer(const Vec2i &size, FBO::ID fbo, int scaleIsOne = 0);
 void blitSource(TEXFBO &source, int scaleIsOne = 0);
 void blitRectangle(const IntRect &src, const Vec2i &dstPos);
 void blitRectangle(const IntRect &src, const IntRect &dst,

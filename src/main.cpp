@@ -41,6 +41,10 @@
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include <dispatch/dispatch.h>
+#include <pthread.h>
+#endif
 #endif
 
 #include "binding.h"
@@ -101,6 +105,7 @@ static bool readMaouWindowRect(int &x, int &y, int &w, int &h)
 
 static EventThread *maouActiveEventThread = 0;
 static SDL_Window *maouActiveWindow = 0;
+static bool maouEmbeddedRuntime = false;
 
 #if defined(MKXPZ_BUILD_XCODE) && (!defined(TARGET_OS_IPHONE) || !TARGET_OS_IPHONE)
 #include <Availability.h>
@@ -111,13 +116,16 @@ static SDL_Window *maouActiveWindow = 0;
 #endif
 
 #ifndef MKXPZ_INIT_GL_LATER
-#define GLINIT_SHOWERROR(s) showInitError(s)
+#define GLINIT_SHOWERROR(s) showGLInitError(threadData, s)
 #else
-#define GLINIT_SHOWERROR(s) rgssThreadError(threadData, s)
+#define GLINIT_SHOWERROR(s) showGLInitError(threadData, s)
 #endif
 
 static void rgssThreadError(RGSSThreadData *rtData, const std::string &msg);
 static void showInitError(const std::string &msg);
+static void showGLInitError(RGSSThreadData *threadData, const std::string &msg);
+static SDL_GLContext initGL(SDL_Window *win, Config &conf,
+                            RGSSThreadData *threadData);
 #ifdef __APPLE__
 extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView);
 extern "C" SDL_Window *maou_mkxpz_create_embedded_sdl_window(const char *title,
@@ -126,6 +134,105 @@ extern "C" SDL_Window *maou_mkxpz_create_embedded_sdl_window(const char *title,
                                                              Uint32 flags,
                                                              void *nativeView);
 #endif
+
+static void maouRunOnMainSync(void (*function)(void *), void *context) {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (pthread_main_np()) {
+    function(context);
+  } else {
+    dispatch_sync_f(dispatch_get_main_queue(), context, function);
+  }
+#else
+  function(context);
+#endif
+}
+
+extern "C" void maou_mkxpz_run_on_main_sync(void (*function)(void *), void *context) {
+  maouRunOnMainSync(function, context);
+}
+
+extern "C" bool maou_mkxpz_is_embedded_runtime() {
+  return maouEmbeddedRuntime;
+}
+
+struct MaouSDLInitTask {
+  Uint32 flags;
+  int result;
+};
+
+static void maouSDLInitTaskRun(void *context) {
+  MaouSDLInitTask *task = static_cast<MaouSDLInitTask *>(context);
+  task->result = SDL_Init(task->flags);
+}
+
+struct MaouInitGLTask {
+  SDL_Window *window;
+  Config *config;
+  RGSSThreadData *threadData;
+  SDL_GLContext result;
+};
+
+static void maouInitGLTaskRun(void *context) {
+  MaouInitGLTask *task = static_cast<MaouInitGLTask *>(context);
+  task->result = initGL(task->window, *task->config, task->threadData);
+}
+
+struct MaouEmbedWindowTask {
+  SDL_Window *window;
+  void *nativeView;
+};
+
+static void maouEmbedWindowTaskRun(void *context) {
+  MaouEmbedWindowTask *task = static_cast<MaouEmbedWindowTask *>(context);
+  maou_mkxpz_embed_sdl_window(task->window, task->nativeView);
+}
+
+struct MaouGLContextTask {
+  SDL_GLContext context;
+};
+
+static void maouDeleteGLContextTaskRun(void *context) {
+  MaouGLContextTask *task = static_cast<MaouGLContextTask *>(context);
+  if (task->context)
+    SDL_GL_DeleteContext(task->context);
+}
+
+static void maouDeleteGLContext(SDL_GLContext context) {
+  MaouGLContextTask task{context};
+  if (maouEmbeddedRuntime)
+    maouRunOnMainSync(maouDeleteGLContextTaskRun, &task);
+  else
+    maouDeleteGLContextTaskRun(&task);
+}
+
+struct MaouWindowTask {
+  SDL_Window *window;
+};
+
+static void maouDestroyWindowTaskRun(void *context) {
+  MaouWindowTask *task = static_cast<MaouWindowTask *>(context);
+  if (task->window)
+    SDL_DestroyWindow(task->window);
+}
+
+static void maouDestroyWindow(SDL_Window *window) {
+  MaouWindowTask task{window};
+  if (maouEmbeddedRuntime)
+    maouRunOnMainSync(maouDestroyWindowTaskRun, &task);
+  else
+    maouDestroyWindowTaskRun(&task);
+}
+
+static void maouSDLQuitTaskRun(void *) {
+  SDL_Quit();
+}
+
+static void maouSDLQuit() {
+  if (maouEmbeddedRuntime)
+    maouRunOnMainSync(maouSDLQuitTaskRun, 0);
+  else
+    maouSDLQuitTaskRun(0);
+}
 
 static inline const char *glGetStringInt(GLenum name) {
   return (const char *)gl.GetString(name);
@@ -164,10 +271,14 @@ int rgssThreadFun(void *userdata) {
   RGSSThreadData *threadData = static_cast<RGSSThreadData *>(userdata);
 
 #ifdef MKXPZ_INIT_GL_LATER
-  threadData->glContext =
-      initGL(threadData->window, threadData->config, threadData);
-  if (!threadData->glContext)
-    return 0;
+  if (threadData->glContext) {
+    SDL_GL_MakeCurrent(threadData->window, threadData->glContext);
+  } else {
+    threadData->glContext =
+        initGL(threadData->window, threadData->config, threadData);
+    if (!threadData->glContext)
+      return 0;
+  }
 #else
   SDL_GL_MakeCurrent(threadData->window, threadData->glContext);
 #endif
@@ -234,8 +345,18 @@ static void rgssThreadError(RGSSThreadData *rtData, const std::string &msg) {
   rtData->rqTermAck.set();
 }
 
+static void showGLInitError(RGSSThreadData *threadData, const std::string &msg) {
+  if (threadData) {
+    rgssThreadError(threadData, msg);
+  } else {
+    showInitError(msg);
+  }
+}
+
 static void showInitError(const std::string &msg) {
   Debug() << msg;
+  if (maouEmbeddedRuntime)
+    return;
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "mkxp-z", msg.c_str(), 0);
 }
 
@@ -307,6 +428,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     const char *workingDirectory = options ? options->workingDirectory : 0;
     const char *resourceDirectory = options ? options->resourceDirectory : 0;
     void *nativeView = options ? options->nativeView : 0;
+    maouEmbeddedRuntime = nativeView != 0;
     Debug() << "maou_mkxpz_run start argc=" << argc
             << "workingDirectory=" << (workingDirectory ? workingDirectory : "(null)")
             << "resourceDirectory=" << (resourceDirectory ? resourceDirectory : "(null)")
@@ -314,8 +436,15 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
             << "viewWidth=" << (options ? options->viewWidth : 0)
             << "viewHeight=" << (options ? options->viewHeight : 0);
 
+    if (maouEmbeddedRuntime)
+      SDL_SetMainReady();
+
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+    if (maouEmbeddedRuntime) {
+      SDL_SetHint(SDL_HINT_IDLE_TIMER_DISABLED, "0");
+      SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1");
+    }
 
 #ifdef GLES2_HEADER
     SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
@@ -324,7 +453,13 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 
     /* initialize SDL first */
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) < 0) {
+    MaouSDLInitTask sdlInitTask{SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER, -1};
+    if (maouEmbeddedRuntime) {
+      maouRunOnMainSync(maouSDLInitTaskRun, &sdlInitTask);
+    } else {
+      maouSDLInitTaskRun(&sdlInitTask);
+    }
+    if (sdlInitTask.result < 0) {
       showInitError(std::string("Error initializing SDL: ") + SDL_GetError());
       return 0;
     }
@@ -391,7 +526,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     if (!STEAMSHIM_init()) {
       showInitError("Failed to initialize Steamworks. The application cannot "
                     "continue launching.");
-      SDL_Quit();
+      maouSDLQuit();
       return 0;
     }
 #endif
@@ -406,7 +541,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     if (IMG_Init(imgFlags) != imgFlags) {
       showInitError(std::string("Error initializing SDL_image: ") +
                     SDL_GetError());
-      SDL_Quit();
+      maouSDLQuit();
 
 #ifdef MKXPZ_STEAM
       STEAMSHIM_deinit();
@@ -420,7 +555,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
       showInitError(std::string("Error initializing SDL_ttf: ") +
                     SDL_GetError());
       IMG_Quit();
-      SDL_Quit();
+      maouSDLQuit();
 
 #ifdef MKXPZ_STEAM
       STEAMSHIM_deinit();
@@ -435,7 +570,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
                     Sound_GetError());
       TTF_Quit();
       IMG_Quit();
-      SDL_Quit();
+      maouSDLQuit();
 
 #ifdef MKXPZ_STEAM
       STEAMSHIM_deinit();
@@ -573,10 +708,10 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
     if (!alcDev) {
       showInitError("Could not detect an available audio device.");
-      SDL_DestroyWindow(win);
+      maouDestroyWindow(win);
       TTF_Quit();
       IMG_Quit();
-      SDL_Quit();
+      maouSDLQuit();
 
 #ifdef MKXPZ_STEAM
       STEAMSHIM_deinit();
@@ -600,8 +735,26 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     SDL_GLContext glCtx = initGL(win, conf, 0);
 #else
     SDL_GLContext glCtx = NULL;
+    if (maouEmbeddedRuntime) {
+      MaouInitGLTask initGLTask{win, &conf, 0, NULL};
+      maouRunOnMainSync(maouInitGLTaskRun, &initGLTask);
+      glCtx = initGLTask.result;
+      if (!glCtx) {
+        alcCloseDevice(alcDev);
+        maouDestroyWindow(win);
+        Sound_Quit();
+        TTF_Quit();
+        IMG_Quit();
+        maouSDLQuit();
+        return 0;
+      }
+    }
 #endif
     Debug() << "GL context initial mode=" << (glCtx ? "ready" : "deferred");
+    if (nativeView && glCtx) {
+      MaouEmbedWindowTask embedWindowTask{win, nativeView};
+      maouRunOnMainSync(maouEmbedWindowTaskRun, &embedWindowTask);
+    }
 
     RGSSThreadData rtData(&eventThread, argv0, win, alcDev, mode.refresh_rate,
                           mkxp_sys::getScalingFactor(), conf, glCtx);
@@ -665,7 +818,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     }
 
     if (rtData.glContext)
-      SDL_GL_DeleteContext(rtData.glContext);
+      maouDeleteGLContext(rtData.glContext);
 
     /* Clean up any remainin events */
     eventThread.cleanup();
@@ -673,7 +826,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     Debug() << "Shutting down.";
 
     alcCloseDevice(alcDev);
-    SDL_DestroyWindow(win);
+    maouDestroyWindow(win);
 
 #if defined(__WIN32__)
     if (wsadata.wVersion)
@@ -686,7 +839,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     Sound_Quit();
     TTF_Quit();
     IMG_Quit();
-    SDL_Quit();
+    maouSDLQuit();
 
     return 0;
 }

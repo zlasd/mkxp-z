@@ -289,6 +289,16 @@ void blitBeginScreen(const Vec2i &size, int scaleIsSpecial)
 	_blitBegin(FBO::ID(0), size, scaleIsSpecial);
 }
 
+void blitBeginScreenFramebuffer(const Vec2i &size, FBO::ID fbo, int scaleIsSpecial)
+{
+	blitDstWidthLores = 1;
+	blitDstWidthHires = 1;
+	blitDstHeightLores = 1;
+	blitDstHeightHires = 1;
+
+	_blitBegin(fbo, size, scaleIsSpecial);
+}
+
 void blitSource(TEXFBO &source, int scaleIsSpecial)
 {
 	blitSrcWidthLores = source.width;

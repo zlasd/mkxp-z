@@ -53,6 +53,10 @@
 #include <SDL_mutex.h>
 #include <SDL_thread.h>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #ifdef MKXPZ_STEAM
 #include "steamshim_child.h"
 #endif
@@ -75,6 +79,34 @@
 #define VIDEO_DELAY 10
 #define MOVIE_AUDIO_BUFFER_SIZE 2048
 #define AUDIO_BUFFER_LEN_MS 2000
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window);
+extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *window);
+
+static void maouSwapWindow(SDL_Window *window) {
+    maou_mkxpz_prepare_ios_gl_present(window);
+    SDL_GL_SwapWindow(window);
+}
+
+static void maouBlitBeginScreen(SDL_Window *window, const Vec2i &size, int scaleIsSpecial) {
+    unsigned int framebuffer = maou_mkxpz_ios_drawable_framebuffer(window);
+    if (framebuffer != 0) {
+        GLMeta::blitBeginScreenFramebuffer(size, FBO::ID(framebuffer), scaleIsSpecial);
+        return;
+    }
+
+    GLMeta::blitBeginScreen(size, scaleIsSpecial);
+}
+#else
+static void maouSwapWindow(SDL_Window *window) {
+    SDL_GL_SwapWindow(window);
+}
+
+static void maouBlitBeginScreen(SDL_Window *, const Vec2i &size, int scaleIsSpecial) {
+    GLMeta::blitBeginScreen(size, scaleIsSpecial);
+}
+#endif
 
 typedef struct AudioQueue
 {
@@ -1003,7 +1035,7 @@ struct GraphicsPrivate {
     
     void swapGLBuffer() {
         fpsLimiter.delay();
-        SDL_GL_SwapWindow(threadData->window);
+        maouSwapWindow(threadData->window);
         
         ++frameCount;
         
@@ -1050,7 +1082,7 @@ struct GraphicsPrivate {
         {
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(integerScaleBuffer, false, IntRect(0, 0, scSize.x, scSize.y), screen.getPP().frontBuffer(), IntRect(0, 0, scRes.x, scRes.y));
 
-            GLMeta::blitBeginScreen(winSize, scaleIsSpecial);
+            maouBlitBeginScreen(threadData->window, winSize, scaleIsSpecial);
             GLMeta::blitSource(screen.getPP().frontBuffer(), scaleIsSpecial);
             
             FBO::clear();
@@ -1091,7 +1123,7 @@ struct GraphicsPrivate {
 
         int scaleIsSpecial = GLMeta::blitScaleIsSpecial(integerScaleBuffer, false, IntRect(0, 0, scSize.x, scSize.y), integerScaleActive ? integerScaleBuffer : screen.getPP().frontBuffer(), IntRect(0, 0, sourceSize.x, sourceSize.y));
 
-        GLMeta::blitBeginScreen(winSize, scaleIsSpecial);
+        maouBlitBeginScreen(threadData->window, winSize, scaleIsSpecial);
         //GLMeta::blitSource(screen.getPP().frontBuffer(), scaleIsSpecial);
 
         if (integerScaleActive)
@@ -1336,7 +1368,7 @@ void Graphics::transition(int duration, const char *filename, int vague) {
         
         int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), transBuffer, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-        GLMeta::blitBeginScreen(Vec2i(p->winSize), scaleIsSpecial);
+    maouBlitBeginScreen(p->threadData->window, Vec2i(p->winSize), scaleIsSpecial);
         GLMeta::blitSource(transBuffer, scaleIsSpecial);
         p->metaBlitBufferFlippedScaled(scaleIsSpecial);
         GLMeta::blitEnd();
@@ -1397,7 +1429,7 @@ void Graphics::fadeout(int duration) {
         if (p->frozen) {
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            GLMeta::blitBeginScreen(p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1424,7 +1456,7 @@ void Graphics::fadein(int duration) {
         if (p->frozen) {
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            GLMeta::blitBeginScreen(p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1744,7 +1776,7 @@ void Graphics::repaintWait(const AtomicFlag &exitCond, bool checkReset) {
 
     int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), lastFrame, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-    GLMeta::blitBeginScreen(p->winSize, scaleIsSpecial);
+    maouBlitBeginScreen(p->threadData->window, p->winSize, scaleIsSpecial);
     GLMeta::blitSource(lastFrame, scaleIsSpecial);
     
     while (!exitCond) {
@@ -1755,7 +1787,7 @@ void Graphics::repaintWait(const AtomicFlag &exitCond, bool checkReset) {
         
         FBO::clear();
         p->metaBlitBufferFlippedScaled(scaleIsSpecial);
-        SDL_GL_SwapWindow(p->threadData->window);
+        maouSwapWindow(p->threadData->window);
         p->fpsLimiter.delay();
         
         p->threadData->ethread->notifyFrame();

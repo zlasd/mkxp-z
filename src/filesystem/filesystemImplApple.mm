@@ -8,6 +8,7 @@
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#import <OpenGLES/ES2/gl.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
@@ -20,12 +21,68 @@
 
 #import "filesystemImpl.h"
 #import "util/exception.h"
+#import "util/debugwriter.h"
 
 #include <vector>
 
 #define PATHTONS(str) [NSFileManager.defaultManager stringWithFileSystemRepresentation:str length:strlen(str)]
 
 #define NSTOPATH(str) [NSFileManager.defaultManager fileSystemRepresentationWithPath:str]
+
+#if TARGET_OS_IPHONE
+@protocol MaouSDLDrawableRenderbuffer
+- (GLuint)drawableRenderbuffer;
+- (GLuint)drawableFramebuffer;
+@end
+
+extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window) {
+    @autoreleasepool {
+        if (window == nullptr) {
+            return 0;
+        }
+
+        SDL_SysWMinfo windowInfo{};
+        SDL_VERSION(&windowInfo.version);
+        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
+            return 0;
+        }
+
+        UIView *sdlView = windowInfo.info.uikit.window.rootViewController.view;
+        if (![sdlView respondsToSelector:@selector(drawableFramebuffer)]) {
+            return 0;
+        }
+
+        return [(id<MaouSDLDrawableRenderbuffer>)sdlView drawableFramebuffer];
+    }
+}
+
+extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *window) {
+    @autoreleasepool {
+        if (window == nullptr) {
+            return;
+        }
+
+        SDL_SysWMinfo windowInfo{};
+        SDL_VERSION(&windowInfo.version);
+        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
+            return;
+        }
+
+        UIView *sdlView = windowInfo.info.uikit.window.rootViewController.view;
+        if (![sdlView respondsToSelector:@selector(drawableRenderbuffer)]) {
+            return;
+        }
+
+        GLuint renderbuffer = [(id<MaouSDLDrawableRenderbuffer>)sdlView drawableRenderbuffer];
+        if (renderbuffer != 0) {
+            glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
+        }
+    }
+}
+#else
+extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *) { return 0; }
+extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *) {}
+#endif
 
 extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView) {
     @autoreleasepool {
@@ -44,14 +101,43 @@ extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView
         UIView *sdlView = sdlWindow.rootViewController.view ?: sdlWindow;
         UIView *hostView = (__bridge UIView *)nativeView;
         if (sdlView == nil || hostView == nil) {
+            Debug() << "Maou iOS embed skipped nil view"
+                    << "sdlWindow=" << (sdlWindow != nil)
+                    << "sdlView=" << (sdlView != nil)
+                    << "hostView=" << (hostView != nil);
             return;
         }
 
-        sdlWindow.hidden = YES;
+        Debug() << "Maou iOS embed before"
+                << "sdlView=" << NSStringFromClass([sdlView class]).UTF8String
+                << "hostBounds=" << NSStringFromCGRect(hostView.bounds).UTF8String
+                << "sdlBounds=" << NSStringFromCGRect(sdlView.bounds).UTF8String
+                << "windowHidden=" << (sdlWindow.hidden ? 1 : 0);
+
+        sdlWindow.hidden = NO;
+        sdlWindow.userInteractionEnabled = NO;
+        sdlWindow.opaque = NO;
+        sdlWindow.backgroundColor = UIColor.clearColor;
+        sdlWindow.windowLevel = UIWindowLevelNormal - 1.0;
+        for (UIView *subview in [hostView.subviews copy]) {
+            if ([NSStringFromClass([subview class]) hasPrefix:@"SDL_uikit"]) {
+                [subview removeFromSuperview];
+            }
+        }
         [sdlView removeFromSuperview];
+        sdlView.hidden = NO;
+        sdlView.opaque = YES;
         sdlView.frame = hostView.bounds;
         sdlView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [hostView addSubview:sdlView];
+        [hostView setNeedsLayout];
+        [sdlView setNeedsLayout];
+
+        Debug() << "Maou iOS embed after"
+                << "hostSubviews=" << hostView.subviews.count
+                << "sdlWindowHidden=" << (sdlWindow.hidden ? 1 : 0)
+                << "sdlHasSuperview=" << (sdlView.superview == hostView ? 1 : 0)
+                << "sdlFrame=" << NSStringFromCGRect(sdlView.frame).UTF8String;
 #else
         NSWindow *sdlWindow = windowInfo.info.cocoa.window;
         NSView *sdlView = sdlWindow.contentView;

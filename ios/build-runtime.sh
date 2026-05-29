@@ -58,6 +58,7 @@ common_args=(
     -fobjc-arc
     -fdeclspec
     -DMAOU_MKXPZ_EMBEDDED_ONLY
+    -DMAOU_MKXPZ_LINKED_ZLIB_EXTENSION
     -DMKXPZ_BUILD_XCODE
     -DMKXPZ_VERSION=\"2.4.2\"
     -DMKXPZ_GIT_HASH=\"$GIT_HASH\"
@@ -166,6 +167,7 @@ c_sources=(
     src/theoraplay/theoraplay.c
     src/display/libnsgif/libnsgif.c
     src/display/libnsgif/lzw.c
+    macos/Dependencies/downloads/aarch64-apple-darwin/ruby/ext/zlib/zlib.c
 )
 
 objcxx_sources=(

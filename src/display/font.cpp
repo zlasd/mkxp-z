@@ -150,6 +150,48 @@ struct SharedFontStatePrivate
 	int fontHinting;
 };
 
+static void registerFontSetFile(FontSet &set,
+                                const std::string &style,
+                                const std::string &filename,
+                                bool sfnt)
+{
+	const bool regular = style.empty() || style == "Regular";
+	if (sfnt)
+	{
+		if (regular && set.sfnt_regular.empty())
+			set.sfnt_regular = filename;
+		else if (!regular && set.sfnt_other.empty())
+			set.sfnt_other = filename;
+	}
+	else
+	{
+		if (regular && set.regular.empty())
+			set.regular = filename;
+		else if (!regular && set.other.empty())
+			set.other = filename;
+	}
+}
+
+static std::string fontFamilyAliasFromFilename(const std::string &filename)
+{
+	size_t begin = filename.find_last_of("/\\");
+	begin = (begin == std::string::npos) ? 0 : begin + 1;
+
+	size_t end = filename.find_last_of('.');
+	if (end == std::string::npos || end < begin)
+		end = filename.size();
+
+	std::string alias = filename.substr(begin, end - begin);
+	std::transform(alias.begin(), alias.end(), alias.begin(),
+		[](unsigned char c)
+		{
+			if (c == '-' || c == '_')
+				return static_cast<char>(' ');
+			return static_cast<char>(std::tolower(c));
+		});
+	return alias;
+}
+
 SharedFontState::SharedFontState(const Config &conf)
 {
 	p = new SharedFontStatePrivate;
@@ -217,18 +259,20 @@ void SharedFontState::initFontSetCB(SDL_RWops &ops,
 	if (!font)
 		return;
 
-	std::string family = TTF_FontFaceFamilyName(font);
-	std::string style = TTF_FontFaceStyleName(font);
+	const char *rawFamily = TTF_FontFaceFamilyName(font);
+	const char *rawStyle = TTF_FontFaceStyleName(font);
+	std::string family = rawFamily ? rawFamily : "";
+	std::string style = rawStyle ? rawStyle : "";
 
 	std::transform(family.begin(), family.end(), family.begin(),
 		[](unsigned char c){ return std::tolower(c); });
 
-	FontSet &set = p->sets[family];
+	if (!family.empty())
+		registerFontSetFile(p->sets[family], style, filename, false);
 
-	if (style == "Regular" && set.regular.empty())
-		set.regular = filename;
-	else if (style != "Regular" && set.other.empty())
-		set.other = filename;
+	const std::string filenameAlias = fontFamilyAliasFromFilename(filename);
+	if (!filenameAlias.empty() && filenameAlias != family)
+		registerFontSetFile(p->sets[filenameAlias], style, filename, false);
 
 	FT_Face face = TTF_FONT_TO_FT_FACE(font);
 
@@ -267,12 +311,7 @@ void SharedFontState::initFontSetCB(SDL_RWops &ops,
 			std::transform(sfnt_family.begin(), sfnt_family.end(), sfnt_family.begin(),
 				[](unsigned char c){ return std::tolower(c); });
 
-			FontSet &set = p->sets[sfnt_family];
-
-			if (sfnt_style == "Regular" && set.sfnt_regular.empty())
-				set.sfnt_regular = filename;
-			else if (sfnt_style != "Regular" && set.sfnt_other.empty())
-				set.sfnt_other = filename;
+			registerFontSetFile(p->sets[sfnt_family], sfnt_style, filename, true);
 		}
 	}
 

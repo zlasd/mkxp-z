@@ -170,6 +170,36 @@ module Graphics
 		def update
 			win32wrap_update
 			$win32KeyStates = nil
+			$maou_graphics_update_count ||= 0
+			$maou_graphics_update_count += 1
+			trace_graphics = (ENV["MAOU_MKXPZ_TRACE_GRAPHICS"] == "1" rescue false)
+			if trace_graphics && ($maou_graphics_update_count % 120) == 0
+				begin
+					scene = defined?(SceneManager) && SceneManager.respond_to?(:scene) && SceneManager.scene ? SceneManager.scene.class : nil
+					System.puts("[MaouTrace] Graphics.update count=#{$maou_graphics_update_count} frame=#{Graphics.frame_count} scene=#{scene} brightness=#{Graphics.brightness}")
+					if scene == Scene_Title && !$maou_title_trace_done
+						$maou_title_trace_done = true
+						current_scene = SceneManager.scene
+						sprite = current_scene.instance_variable_get(:@sprite1)
+						command_window = current_scene.instance_variable_get(:@command_window)
+						System.puts("[MaouTrace] Title data title1=#{$data_system.title1_name.inspect} title2=#{$data_system.title2_name.inspect} draw_title=#{$data_system.opt_draw_title.inspect}")
+						if sprite && sprite.bitmap
+							System.puts("[MaouTrace] Title sprite bitmap=#{sprite.bitmap.width}x#{sprite.bitmap.height} pos=#{sprite.x},#{sprite.y} visible=#{sprite.visible}")
+						end
+						if command_window
+							System.puts("[MaouTrace] Title command window x=#{command_window.x} y=#{command_window.y} w=#{command_window.width} h=#{command_window.height} visible=#{command_window.visible} openness=#{command_window.openness}")
+						end
+						begin
+							Graphics.snap_to_bitmap.to_file("maou-title-snapshot.png")
+							System.puts("[MaouTrace] Saved maou-title-snapshot.png")
+						rescue Exception => snapshot_error
+							System.puts("[MaouTrace] Snapshot failed #{snapshot_error.class}: #{snapshot_error.message}")
+						end
+					end
+				rescue Exception => e
+					System.puts("[MaouTrace] Graphics.update trace failed #{e.class}: #{e.message}")
+				end
+			end
 		end
 	end
 end
@@ -214,13 +244,71 @@ def common_keystate(vkey)
 	return pressed ? 1 : 0
 end
 
-def memcpy_string(dst, src)
-	i = 0
-	src.each_byte do |b|
-		dst.setbyte(i, b)
-		i += 1
+	def memcpy_string(dst, src)
+		i = 0
+		src.each_byte do |b|
+			dst.setbyte(i, b)
+			i += 1
+		end
 	end
-end
+
+	def copy_c_string(dst, src, max_size)
+		max_size = max_size.to_i
+		return 0 if max_size <= 0
+		bytes = src.to_s.b
+		copy_len = [bytes.bytesize, max_size - 1].min
+		i = 0
+		while i < copy_len
+			dst.setbyte(i, bytes.getbyte(i))
+			i += 1
+		end
+		dst.setbyte(copy_len, 0)
+		return copy_len
+	end
+
+		def normalize_win32_path(path)
+			path = path.to_s.tr("\\", "/")
+			path = path[2..-1] if path.start_with?("./")
+			return path
+		end
+
+		def strip_ascii_bytes(str)
+			bytes = str.to_s.b
+			left = 0
+			right = bytes.bytesize - 1
+			left += 1 while left <= right && [9, 32].include?(bytes.getbyte(left))
+			right -= 1 while right >= left && [9, 32].include?(bytes.getbyte(right))
+			return "" if right < left
+			bytes.byteslice(left, right - left + 1)
+		end
+
+		def utf8_to_utf16le_bytes(text, include_nul)
+			begin
+				codepoints = text.to_s.force_encoding("UTF-8").codepoints
+			rescue
+			codepoints = text.to_s.b.bytes
+		end
+		bytes = codepoints.map { |cp| [cp > 0xffff ? 0x3f : cp].pack("v") }.join
+		bytes += "\x00\x00".b if include_nul
+		return bytes.b
+	end
+
+	def utf16le_bytes_to_utf8(bytes, include_nul)
+		codepoints = []
+		raw = bytes.to_s.b
+		i = 0
+		while i + 1 < raw.bytesize
+			cp = raw.getbyte(i) | (raw.getbyte(i + 1) << 8)
+			break if cp == 0
+			codepoints << cp
+			i += 2
+		end
+		text = codepoints.pack("U*")
+		text += "\x00" if include_nul
+		return text
+	rescue
+		return include_nul ? "\x00" : ""
+	end
 
 def state_pressed(states, sdl_scan)
 	return states[Scancodes::SDL[sdl_scan]]
@@ -230,8 +318,83 @@ def double_state(states, left, right)
 	return state_pressed(states, left) || state_pressed(states, right)
 end
 
-module Win32API_Impl
-	module User32
+		module Win32API_Impl
+			module Kernel32
+				class GetPrivateProfileStringA
+					def call(args)
+						section = args[0].to_s
+						key = args[1].to_s
+						default_value = args[2].to_s.b
+						out = args[3]
+						max_size = args[4].to_i
+						path = normalize_win32_path(args[5])
+						value = default_value
+
+						begin
+							current_section = nil
+							File.binread(path).split(/[\r\n]+/).each do |line|
+								line = strip_ascii_bytes(line)
+								next if line.empty? || line.start_with?(";")
+								if line.start_with?("[") && line.end_with?("]")
+									current_section = line[1...-1]
+									next
+								end
+								next unless current_section == section
+								name, raw_value = line.split("=", 2)
+								next unless name && raw_value && strip_ascii_bytes(name) == key
+								value = strip_ascii_bytes(raw_value)
+								break
+							end
+						rescue Exception => e
+							System.puts("[Win32API] GetPrivateProfileStringA failed #{path.inspect}: #{e.class}: #{e.message}")
+						end
+
+						begin
+							System.puts("[Win32API] GetPrivateProfileStringA #{section.inspect}/#{key.inspect} #{path.inspect} -> #{value.inspect}")
+						rescue
+						end
+
+						return copy_c_string(out, value, max_size)
+					end
+			end
+
+			class MultiByteToWideChar
+				def call(args)
+					src = args[2].to_s.b
+					src_len = args[3].to_i
+					dst = args[4]
+					dst_len = args[5].to_i
+
+					text = src_len < 0 ? src.split("\x00", 2)[0] : src.byteslice(0, src_len).to_s
+					wide = utf8_to_utf16le_bytes(text, src_len < 0)
+					required_chars = wide.bytesize / 2
+					return required_chars if dst.nil? || dst_len == 0
+
+					copy_bytes = [wide.bytesize, dst_len * 2].min
+					memcpy_string(dst, wide.byteslice(0, copy_bytes))
+					return copy_bytes / 2
+				end
+			end
+
+			class WideCharToMultiByte
+				def call(args)
+					wide = args[2].to_s.b
+					wide_len = args[3].to_i
+					dst = args[4]
+					dst_len = args[5].to_i
+
+					wide = wide_len < 0 ? wide : wide.byteslice(0, wide_len * 2).to_s
+					text = utf16le_bytes_to_utf8(wide, wide_len < 0)
+					return text.bytesize if dst.nil? || dst_len == 0
+
+					copy_len = [text.bytesize, dst_len].min
+					memcpy_string(dst, text.byteslice(0, copy_len))
+					return copy_len
+				end
+			end
+		end
+
+		module User32
 		class Keybd_event
 			Seq = [
 				[0xA4, 0, 0, 0],
@@ -330,17 +493,115 @@ module Win32API_Impl
 			end
 		end
 
-		class FindWindowA
-			def call(args)
-				if args[0] == "RGSS Player"
-					return 42
-				else
+			class FindWindowA
+				def call(args)
+					if args[0] == "RGSS Player"
+						return 42
+					else
+						return 0
+					end
+				end
+			end
+
+				class MessageBoxA
+					def call(args)
+						title = args[2].to_s.tr("\x00", "")
+						message = args[1].to_s.tr("\x00", "")
+						System.puts("[Win32API] MessageBoxA title=#{title.inspect} message=#{message.inspect}")
+						return 1
+					end
+				end
+		end
+
+		module WFExit
+			class HookExit
+				def call(args)
+					return 1
+				end
+			end
+			class ClearReset
+				def call(args)
+					return 1
+				end
+			end
+			class GetToExit
+				def call(args)
 					return 0
 				end
 			end
+			class GetToReset
+				def call(args)
+					return 0
+				end
+			end
+			class Quit
+				def call(args)
+					return 1
+				end
+			end
+		end
+
+			module WfAudio
+				class Initialize
+					def call(args)
+						return 0
+					end
+				end
+
+				class NoOp
+					def call(args)
+						return 1
+					end
+				end
+
+			class Query
+				def call(args)
+					return 0
+				end
+			end
+
+			class GetRTPPath
+				def call(args)
+					return 0
+				end
+			end
+
+				[
+					:Dispose, :Pause, :Resume, :Stop, :StopSecond,
+				:StopBoth, :StopBGS, :StopME, :StopSE, :StopVoice,
+				:SeekClear, :SeekMemorise, :SeekSet, :BalanceSet,
+				:PlayBGM, :PlayBGMMemory, :PlaySecond, :PlaySecondMemory,
+				:PlayBGS, :PlayBGSMemory, :PlaySE, :PlaySEMemory,
+				:PlayME, :PlayMEMemory, :PlayVoice, :PlayVoiceMemory,
+				:FadeBGM, :FadeBGS, :FadeME, :SetCrossFade,
+				:ReservePrimaryBGM, :ReservePrimaryBGMMemory, :CuePrimaryBGM,
+				:PrimaryBGMPan, :BGSPan, :MEPan, :SEPan, :PrimaryBGMReverb,
+				:BGSReverb, :MEReverb, :SEReverb, :PrimaryBGMEffect,
+				:SecondryBGMEffect, :BGSEffect, :MEEffect, :SEEffect,
+				:VoiceEffect, :VoiceReverb, :VoicePan, :PrimaryBGMEffectDetail,
+				:SecondryBGMEffectDetail, :BGSEffectDetail, :MEEffectDetail,
+				:SEEffectDetail, :VoiceEffectDetail
+			].each do |name|
+				const_set(name, NoOp)
+			end
+
+			[
+				:IsPrimaryBGMPosition, :IsSecoundryBGMPosition, :IsBGSPosition,
+				:IsVoicePositionPermilNumber, :IsVoicePositionPermilFileName,
+				:IsVoicePositionNumber, :IsVoicePositionFileName,
+				:IsVoicePlayingNumber, :IsVoicePlayingFileName,
+				:IsPrimaryBGMCheckPoint, :IsSecoundryBGMCheckPoint,
+				:IsBGSCheckPoint, :IsPrimaryBGMLoopEnd,
+				:IsSecondryBGMLoopEnd, :IsBGSLoopEnd, :PrimaryBGMLength,
+				:SecondryBGMLength, :BGSLength, :VoiceLengthNumber,
+				:VoiceLengthFileName
+			].each do |name|
+				const_set(name, Query)
+			end
+
+			const_set(:GetRTPPath, GetRTPPath)
 		end
 	end
-end
 
 def kappatalize(s)
 	s[0] = s[0].upcase
@@ -351,6 +612,7 @@ class Win32API
 	NATIVE_ON_WINDOWS = true unless const_defined?("NATIVE_ON_WINDOWS")
 	TOLERATE_ERRORS = true unless const_defined?("TOLERATE_ERRORS")
 	LOG_NATIVE = false unless const_defined?("LOG_NATIVE")
+	MKXP_NATIVE_CALL_AVAILABLE = method_defined?(:call) unless const_defined?("MKXP_NATIVE_CALL_AVAILABLE")
 
 	alias_method :mkxp_native_initialize, :initialize
 	def initialize(dll, func, *args)
@@ -372,16 +634,24 @@ class Win32API
 		end
 
 		@mkxp_native_available = false
-		begin
-			mkxp_native_initialize(@dll, @func, *args)
-			@mkxp_native_available = true
-			return
-		rescue
+		if MKXP_NATIVE_CALL_AVAILABLE
+			begin
+				mkxp_native_initialize(@dll, @func, *args)
+				@mkxp_native_available = true
+				return
+			rescue
+			end
 		end
 
 	end
 
-	alias_method :mkxp_native_call, :call
+	if MKXP_NATIVE_CALL_AVAILABLE
+		alias_method :mkxp_native_call, :call
+	else
+		def mkxp_native_call(*args)
+			raise RuntimeError, "Native Win32API#call is unavailable"
+		end
+	end
 	def call(*args)
 		if @mkxp_wrap_impl
 			return @mkxp_wrap_impl.call(args)
