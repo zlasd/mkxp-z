@@ -21,10 +21,22 @@ typedef struct MaouMkxpzRunOptions {
     int viewHeight;
 } MaouMkxpzRunOptions;
 
+typedef void (*MaouMkxpzScreenshotCallback)(int success, const char *path, void *context);
+typedef void (*MaouMkxpzResourceCallback)(const char *path, void *context);
+
 MAOU_MKXPZ_EXPORT int maou_mkxpz_run(const MaouMkxpzRunOptions *options);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_request_stop(void);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_send_key(int sdlScancode, int keyDown, int ctrl);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_resize(int width, int height);
+MAOU_MKXPZ_EXPORT void maou_mkxpz_request_screenshot(
+    const char *path,
+    MaouMkxpzScreenshotCallback callback,
+    void *context
+);
+MAOU_MKXPZ_EXPORT void maou_mkxpz_set_resource_callback(
+    MaouMkxpzResourceCallback callback,
+    void *context
+);
 
 #ifdef __cplusplus
 }

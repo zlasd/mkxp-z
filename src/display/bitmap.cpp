@@ -1896,6 +1896,16 @@ void Bitmap::replaceRaw(void *pixel_data, int size)
 
 void Bitmap::saveToFile(const char *filename)
 {
+    saveToFileImpl(filename, true);
+}
+
+void Bitmap::saveToExactFile(const char *filename)
+{
+    saveToFileImpl(filename, false);
+}
+
+void Bitmap::saveToFileImpl(const char *filename, bool normalizePath)
+{
     guardDisposed();
     
     if (hasHires()) {
@@ -1934,17 +1944,23 @@ void Bitmap::saveToFile(const char *filename)
         }
     }
     
-    std::string fn_normalized = shState->fileSystem().normalize(filename, 1, 1);
+    std::string fn_normalized;
+    const char *targetFilename = filename;
+    if (normalizePath) {
+        fn_normalized = shState->fileSystem().normalize(filename, 1, 1);
+        targetFilename = fn_normalized.c_str();
+    }
+
     int rc;
     switch (filetype) {
         case 2:
-            rc = IMG_SaveJPG(surf, fn_normalized.c_str(), 90);
+            rc = IMG_SaveJPG(surf, targetFilename, 90);
             break;
         case 1:
-            rc = IMG_SavePNG(surf, fn_normalized.c_str());
+            rc = IMG_SavePNG(surf, targetFilename);
             break;
         case 0: default:
-            rc = SDL_SaveBMP(surf, fn_normalized.c_str());
+            rc = SDL_SaveBMP(surf, targetFilename);
             break;
     }
     

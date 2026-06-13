@@ -44,6 +44,7 @@
 #include "theoraplay/theoraplay.h"
 #include "util.h"
 #include "input.h"
+#include "maou_mkxpz.h"
 #include "sprite.h"
 
 #include <SDL.h>
@@ -68,6 +69,7 @@
 #include <time.h>
 #include <cmath>
 #include <climits>
+#include <string>
 
 
 #define DEF_SCREEN_W (rgssVer == 1 ? 640 : 544)
@@ -79,6 +81,58 @@
 #define VIDEO_DELAY 10
 #define MOVIE_AUDIO_BUFFER_SIZE 2048
 #define AUDIO_BUFFER_LEN_MS 2000
+
+struct MaouPendingScreenshot {
+    std::string path;
+    MaouMkxpzScreenshotCallback callback;
+    void *context;
+};
+
+static SDL_mutex *maouScreenshotMutex = 0;
+static MaouPendingScreenshot maouPendingScreenshot;
+static bool maouHasPendingScreenshot = false;
+
+extern "C" void maou_mkxpz_request_screenshot(
+    const char *path,
+    MaouMkxpzScreenshotCallback callback,
+    void *context
+) {
+    if (!path || !callback) {
+        if (callback)
+            callback(0, path, context);
+        return;
+    }
+
+    if (!maouScreenshotMutex)
+        maouScreenshotMutex = SDL_CreateMutex();
+    if (maouScreenshotMutex)
+        SDL_LockMutex(maouScreenshotMutex);
+
+    maouPendingScreenshot.path = path;
+    maouPendingScreenshot.callback = callback;
+    maouPendingScreenshot.context = context;
+    maouHasPendingScreenshot = true;
+
+    if (maouScreenshotMutex)
+        SDL_UnlockMutex(maouScreenshotMutex);
+}
+
+static bool maouConsumePendingScreenshot(MaouPendingScreenshot &request) {
+    if (!maouScreenshotMutex)
+        maouScreenshotMutex = SDL_CreateMutex();
+    if (maouScreenshotMutex)
+        SDL_LockMutex(maouScreenshotMutex);
+
+    const bool hasRequest = maouHasPendingScreenshot;
+    if (hasRequest) {
+        request = maouPendingScreenshot;
+        maouHasPendingScreenshot = false;
+    }
+
+    if (maouScreenshotMutex)
+        SDL_UnlockMutex(maouScreenshotMutex);
+    return hasRequest;
+}
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window);
@@ -1076,6 +1130,34 @@ struct GraphicsPrivate {
     
     void redrawScreen() {
         screen.composite();
+
+        MaouPendingScreenshot screenshotRequest;
+        if (maouConsumePendingScreenshot(screenshotRequest)) {
+            bool success = false;
+            try {
+                Bitmap *ss = 0;
+                if (shState->config().enableHires) {
+                    TEXFBO tf;
+                    tf.width = scResLores.x;
+                    tf.height = scResLores.y;
+                    tf.selfHires = &screen.getPP().frontBuffer();
+                    ss = new Bitmap(tf);
+                } else {
+                    ss = new Bitmap(screen.getPP().frontBuffer());
+                }
+                ss->saveToExactFile(screenshotRequest.path.c_str());
+                ss->dispose();
+                delete ss;
+                success = true;
+            } catch (...) {
+                success = false;
+            }
+            screenshotRequest.callback(
+                success ? 1 : 0,
+                screenshotRequest.path.c_str(),
+                screenshotRequest.context
+            );
+        }
         
         // maybe unspaghetti this later
         if (integerScaleStepApplicable() && !integerLastMileScaling)

@@ -104,6 +104,7 @@ public:
     bool getRaw(void *output, int output_size);
     void replaceRaw(void *pixel_data, int size);
     void saveToFile(const char *filename);
+    void saveToExactFile(const char *filename);
 
 	void hueChange(int hue);
 
@@ -188,6 +189,7 @@ private:
 
 	BitmapPrivate *p;
 
+	void saveToFileImpl(const char *filename, bool normalizePath);
 	void loresDisposal();
 };
 

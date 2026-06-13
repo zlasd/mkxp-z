@@ -29,16 +29,61 @@
 #include "crypto/rgssad.h"
 
 #include "eventthread.h"
+#include "maou_mkxpz.h"
 #include "sharedstate.h"
 
 #include <physfs.h>
 
 #include <algorithm>
+#include <cctype>
 #include <stack>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <vector>
+
+static MaouMkxpzResourceCallback maouResourceCallback = 0;
+static void *maouResourceCallbackContext = 0;
+
+extern "C" void maou_mkxpz_set_resource_callback(
+    MaouMkxpzResourceCallback callback,
+    void *context
+) {
+  maouResourceCallback = callback;
+  maouResourceCallbackContext = context;
+}
+
+static bool maouShouldReportResource(const std::string &path) {
+  std::string lower(path);
+  std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+
+  const char *patterns[] = {
+    "graphics/titles1/",
+    "graphics/titles2/",
+    "graphics/pictures/",
+    "graphics/faces/",
+    "graphics/characters/",
+    "graphics/parallaxes/",
+    "graphics/tilesets/",
+    "graphics/battlebacks1/",
+    "graphics/battlebacks2/",
+    "graphics/battlebacks/"
+  };
+
+  for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); ++i) {
+    if (lower.find(patterns[i]) != std::string::npos)
+      return true;
+  }
+  return false;
+}
+
+static void maouReportResourceIfNeeded(const std::string &path) {
+  if (!maouResourceCallback || !maouShouldReportResource(path))
+    return;
+  maouResourceCallback(path.c_str(), maouResourceCallbackContext);
+}
 
 #ifdef __APPLE__
 #include <iconv.h>
@@ -613,6 +658,7 @@ openReadEnumCB(void *d, const char *dirpath, const char *filename) {
 
 void FileSystem::openRead(OpenHandler &handler, const char *filename) {
   std::string filename_nm = normalize(filename, false, false);
+  maouReportResourceIfNeeded(filename_nm);
   char buffer[512];
   size_t len = strcpySafe(buffer, filename_nm.c_str(), sizeof(buffer), -1);
   char *delim;
