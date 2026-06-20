@@ -39,6 +39,9 @@
 
 #include "sharedstate.h"
 #include "graphics.h"
+#include "debugwriter.h"
+
+extern "C" bool maou_mkxpz_is_embedded_runtime();
 
 #ifndef MKXPZ_BUILD_XCODE
 #include "settingsmenu.h"
@@ -796,6 +799,12 @@ void EventThread::requestSettingsMenu()
 
 void EventThread::showMessageBox(const char *body, int flags)
 {
+    if (maou_mkxpz_is_embedded_runtime())
+    {
+        Debug() << "Suppressed embedded runtime message box:" << (body ? body : "");
+        return;
+    }
+
     msgBoxDone.clear();
     
     // mkxp has already been asked to quit.

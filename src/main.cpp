@@ -803,18 +803,28 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
 
     /* If RGSS thread ack'd request, wait for it to shutdown,
      * otherwise abandon hope and just end the process as is. */
+    int maouExitCode = 0;
     if (rtData.rqTermAck)
       SDL_WaitThread(rgssThread, 0);
-    else
-      SDL_ShowSimpleMessageBox(
-          SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
-          std::string("The RGSS script seems to be stuck. "+conf.game.title+" will now force quit.").c_str(),
-          win);
+    else {
+      maouExitCode = 2;
+      std::string stuckMessage = "The RGSS script seems to be stuck. " + conf.game.title + " will now force quit.";
+      Debug() << stuckMessage;
+      if (!maouEmbeddedRuntime) {
+        SDL_ShowSimpleMessageBox(
+            SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
+            stuckMessage.c_str(),
+            win);
+      }
+    }
 
     if (!rtData.rgssErrorMsg.empty()) {
+      maouExitCode = 1;
       Debug() << rtData.rgssErrorMsg;
-      SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
-                               rtData.rgssErrorMsg.c_str(), win);
+      if (!maouEmbeddedRuntime) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
+                                 rtData.rgssErrorMsg.c_str(), win);
+      }
     }
 
     if (rtData.glContext)
@@ -841,7 +851,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     IMG_Quit();
     maouSDLQuit();
 
-    return 0;
+    return maouExitCode;
 }
 
 #ifndef MAOU_MKXPZ_EMBEDDED_ONLY
