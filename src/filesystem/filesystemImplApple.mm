@@ -251,10 +251,16 @@ std::string filesystemImpl::getCurrentDirectory() {
 
 std::string filesystemImpl::normalizePath(const char *path, bool preferred, bool absolute) {
     @autoreleasepool {
-        NSString *nspath = [NSURL fileURLWithPath: PATHTONS(path)].URLByStandardizingPath.path;
-        NSString *pwd = [NSString stringWithFormat:@"%@/", NSFileManager.defaultManager.currentDirectoryPath];
-        if (!absolute) {
-            nspath = [nspath stringByReplacingOccurrencesOfString:pwd withString:@""];
+        NSString *inputPath = PATHTONS(path);
+        NSString *nspath;
+        if (!absolute && !inputPath.isAbsolutePath) {
+            nspath = inputPath.stringByStandardizingPath;
+        } else {
+            nspath = [NSURL fileURLWithPath:inputPath].URLByStandardizingPath.path;
+            NSString *pwd = [NSString stringWithFormat:@"%@/", NSFileManager.defaultManager.currentDirectoryPath];
+            if (!absolute && [nspath hasPrefix:pwd]) {
+                nspath = [nspath substringFromIndex:pwd.length];
+            }
         }
         nspath = [nspath stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
         nspath = [nspath precomposedStringWithCanonicalMapping];

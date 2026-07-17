@@ -139,7 +139,8 @@ struct SharedStatePrivate
 			fclose(tmp);
 		}
 
-		fileSystem.addPath(".");
+		const char *gamePath = config.gameFolder.empty() ? "." : config.gameFolder.c_str();
+		fileSystem.addPath(gamePath);
 
 		for (size_t i = 0; i < config.rtps.size(); ++i)
 			fileSystem.addPath(config.rtps[i].c_str());

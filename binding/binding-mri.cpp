@@ -328,6 +328,7 @@ static void mriBindingInit() {
 }
 
 static void showMsg(const std::string &msg) {
+    Debug() << "Ruby message box:" << msg;
     shState->eThread().showMessageBox(msg.c_str());
 }
 
