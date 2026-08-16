@@ -131,10 +131,11 @@ bool EventThread::allocUserEvents()
     return true;
 }
 
-EventThread::EventThread()
-: ctrl(0),
-fullscreen(false),
-showCursor(false)
+EventThread::EventThread(bool controllerSupportEnabled)
+: fullscreen(false),
+showCursor(false),
+controllerSupportEnabled(controllerSupportEnabled),
+ctrl(0)
 {
     textInputLock = SDL_CreateMutex();
 }
@@ -189,16 +190,17 @@ void EventThread::process(RGSSThreadData &rtData)
     
     bool terminate = false;
     
+    if (controllerSupportEnabled) {
 #ifdef MKXPZ_BUILD_XCODE
-    SDL_GameControllerAddMappingsFromFile(mkxp_fs::getPathForAsset("gamecontrollerdb", "txt").c_str());
+        SDL_GameControllerAddMappingsFromFile(mkxp_fs::getPathForAsset("gamecontrollerdb", "txt").c_str());
 #else
-    SDL_GameControllerAddMappingsFromRW(
-        SDL_RWFromConstMem(___assets_gamecontrollerdb_txt, ___assets_gamecontrollerdb_txt_len),
-    1);
+        SDL_GameControllerAddMappingsFromRW(
+            SDL_RWFromConstMem(___assets_gamecontrollerdb_txt, ___assets_gamecontrollerdb_txt_len),
+        1);
 #endif
-    
-    SDL_JoystickUpdate();
-    if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0)) {
+
+        SDL_JoystickUpdate();
+        if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0))
             ctrl = SDL_GameControllerOpen(0);
     }
     
@@ -434,18 +436,26 @@ void EventThread::process(RGSSThreadData &rtData)
                 break;
                 
             case SDL_CONTROLLERBUTTONDOWN:
+                if (!controllerSupportEnabled)
+                    break;
                 controllerState.buttons[event.cbutton.button] = true;
                 break;
                 
             case SDL_CONTROLLERBUTTONUP:
+                if (!controllerSupportEnabled)
+                    break;
                 controllerState.buttons[event.cbutton.button] = false;
                 break;
                 
             case SDL_CONTROLLERAXISMOTION:
+                if (!controllerSupportEnabled)
+                    break;
                 controllerState.axes[event.caxis.axis] = event.caxis.value;
                 break;
                 
             case SDL_CONTROLLERDEVICEADDED:
+                if (!controllerSupportEnabled)
+                    break;
                 if (event.cdevice.which > 0)
                     break;
                 
@@ -453,6 +463,8 @@ void EventThread::process(RGSSThreadData &rtData)
                 break;
                 
             case SDL_CONTROLLERDEVICEREMOVED:
+                if (!controllerSupportEnabled)
+                    break;
                 resetInputStates();
                 ctrl = 0;
                 break;
@@ -568,6 +580,8 @@ void EventThread::process(RGSSThreadData &rtData)
                         break;
                         
                     case REQUEST_SETTINGS :
+                        if (!controllerSupportEnabled)
+                            break;
 #ifndef MKXPZ_BUILD_XCODE
                         if (!sMenu)
                         {
@@ -622,7 +636,7 @@ void EventThread::process(RGSSThreadData &rtData)
     /* Just in case */
     rtData.syncPoint.resumeThreads();
     
-    if (SDL_GameControllerGetAttached(ctrl))
+    if (ctrl && SDL_GameControllerGetAttached(ctrl))
         SDL_GameControllerClose(ctrl);
     
 #ifndef MKXPZ_BUILD_XCODE
@@ -838,12 +852,12 @@ bool EventThread::getShowCursor() const
 
 bool EventThread::getControllerConnected() const
 {
-    return ctrl != 0;
+    return controllerSupportEnabled && ctrl != 0;
 }
 
 SDL_GameController *EventThread::controller() const
 {
-    return ctrl;
+    return controllerSupportEnabled ? ctrl : 0;
 }
 
 void EventThread::notifyFrame()

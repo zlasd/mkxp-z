@@ -1,0 +1,11 @@
+--- a/src/video/uikit/SDL_uikitevents.m
++++ b/src/video/uikit/SDL_uikitevents.m
+@@ -32,7 +32,7 @@
+ 
+ #import <Foundation/Foundation.h>
+ 
+-#if (__IPHONE_OS_VERSION_MAX_ALLOWED >= 140000) || (__APPLETV_OS_VERSION_MAX_ALLOWED >= 140000) || (__MAC_OS_VERSION_MAX_ALLOWED > 1500000)
++#if ((!defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT) && ((__IPHONE_OS_VERSION_MAX_ALLOWED >= 140000) || (__APPLETV_OS_VERSION_MAX_ALLOWED >= 140000) || (__MAC_OS_VERSION_MAX_ALLOWED > 1500000)))
+ #import <GameController/GameController.h>
+ 
+ #define ENABLE_GCKEYBOARD

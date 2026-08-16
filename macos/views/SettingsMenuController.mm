@@ -12,7 +12,9 @@
 
 // Yes, it is still a mess, but it is working.
 
+#if !defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT
 #import <GameController/GameController.h>
+#endif
 #include <Availability.h>
 
 #import <SDL_scancode.h>
@@ -84,7 +86,9 @@ typedef NSMutableArray<NSNumber*> BindingIndexArray;
     win.title = @"Keybindings";
     [s setWindow:win];
     [win makeKeyAndOrderFront:self];
+#if !defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT
     [s checkController];
+#endif
     return s;
 }
 
@@ -176,6 +180,7 @@ s.d.ca.dir = (axis.value >= 0) ? AxisDir::Positive : AxisDir::Negative;
 
 #define checkAxis(el, a, n) else if (element == gamepad.el && (gamepad.el.a.value >= 0.5 || gamepad.el.a.value <= -0.5)) { setAxisData(el.a, n); }
 
+#if !defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT
 - (void)registerJoystickAction:(GCExtendedGamepad*)gamepad element:(GCControllerElement*)element {
     if (!isListening) return;
     
@@ -244,6 +249,7 @@ s.d.ca.dir = (axis.value >= 0) ? AxisDir::Positive : AxisDir::Negative;
     binds->push_back(d);
     [self setNotListening:true];
 }
+#endif
 
 +(NSString*)nameForBinding:(SourceDesc&)desc {
     switch (desc.type) {
@@ -492,9 +498,12 @@ if (!data.config.kbActionNames.value.empty()) bindingNames[@(Input::code)] = \
     src.enabled = true;
     isListening = true;
     
+#if !defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT
     [self checkController];
+#endif
 }
 
+#if !defined(MAOU_CONTROLLER_SUPPORT) || MAOU_CONTROLLER_SUPPORT
 - (void)checkController {
     NSArray<GCController*>* controllers = [GCController controllers];
     if (controllers.count <= 0) return;
@@ -503,6 +512,7 @@ if (!data.config.kbActionNames.value.empty()) bindingNames[@(Input::code)] = \
     gamepad.extendedGamepad.valueChangedHandler = ^(GCExtendedGamepad *gamepad, GCControllerElement *element)
     {[self registerJoystickAction:gamepad element:element];};
 }
+#endif
 
 - (void)setNotListening:(bool)keepCurrentSelection {
     [self loadBinds];

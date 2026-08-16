@@ -19,6 +19,7 @@ typedef struct MaouMkxpzRunOptions {
     void *nativeView;
     int viewWidth;
     int viewHeight;
+    int controllerSupportEnabled;
 } MaouMkxpzRunOptions;
 
 typedef void (*MaouMkxpzScreenshotCallback)(int success, const char *path, void *context);

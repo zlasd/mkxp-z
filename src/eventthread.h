@@ -83,7 +83,7 @@ public:
 
 	static bool allocUserEvents();
 
-	EventThread();
+	explicit EventThread(bool controllerSupportEnabled = true);
     ~EventThread();
 
 	void process(RGSSThreadData &rtData);
@@ -127,7 +127,8 @@ private:
 	void cursorTimer();
 
 	bool fullscreen;
-	bool showCursor;
+    bool showCursor;
+	bool controllerSupportEnabled;
     
     SDL_GameController *ctrl;
     

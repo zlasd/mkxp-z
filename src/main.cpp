@@ -428,11 +428,15 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     const char *workingDirectory = options ? options->workingDirectory : 0;
     const char *resourceDirectory = options ? options->resourceDirectory : 0;
     void *nativeView = options ? options->nativeView : 0;
+    const bool controllerSupportEnabled = options
+      ? options->controllerSupportEnabled != 0
+      : true;
     maouEmbeddedRuntime = nativeView != 0;
     Debug() << "maou_mkxpz_run start argc=" << argc
             << "workingDirectory=" << (workingDirectory ? workingDirectory : "(null)")
             << "resourceDirectory=" << (resourceDirectory ? resourceDirectory : "(null)")
             << "nativeView=" << (nativeView ? "yes" : "no")
+            << "controllerSupport=" << (controllerSupportEnabled ? "yes" : "no")
             << "viewWidth=" << (options ? options->viewWidth : 0)
             << "viewHeight=" << (options ? options->viewHeight : 0);
 
@@ -453,7 +457,10 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 
     /* initialize SDL first */
-    MaouSDLInitTask sdlInitTask{SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER, -1};
+    Uint32 sdlInitFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER;
+    if (controllerSupportEnabled)
+      sdlInitFlags |= SDL_INIT_GAMECONTROLLER;
+    MaouSDLInitTask sdlInitTask{sdlInitFlags, -1};
     if (maouEmbeddedRuntime) {
       maouRunOnMainSync(maouSDLInitTaskRun, &sdlInitTask);
     } else {
@@ -727,7 +734,7 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     if (!mode.refresh_rate)
       conf.syncToRefreshrate = false;
 
-    EventThread eventThread;
+    EventThread eventThread(controllerSupportEnabled);
     maouActiveEventThread = &eventThread;
     maouActiveWindow = win;
 
@@ -859,6 +866,9 @@ int main(int argc, char *argv[]) {
     MaouMkxpzRunOptions options{};
     options.argc = argc;
     options.argv = argv;
+    const char *controllerSupport = getenv("MAOU_CONTROLLER_SUPPORT");
+    options.controllerSupportEnabled = !controllerSupport ||
+      strcmp(controllerSupport, "NO") != 0;
     return maou_mkxpz_run(&options);
 }
 #endif
