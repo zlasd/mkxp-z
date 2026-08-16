@@ -582,8 +582,9 @@ _TTF_Font *SharedFontState::getFont(std::string family,
 	if (family.empty())
 		family = p->defaultFamily;
 
-	/* Check for substitutions */
-	if (p->subs.contains(family))
+	/* Preserve a real game/RTP font when it exists. Substitutions are
+	 * fallbacks, not aliases that should shadow an encrypted archive font. */
+	if (p->sets[family]->empty() && p->subs.contains(family))
 		family = p->subs[family];
 
 	/* Find out if the font asset exists */
@@ -716,8 +717,8 @@ bool SharedFontState::fontPresent(std::string family) const
 	std::transform(family.begin(), family.end(), family.begin(),
 		[](unsigned char c){ return std::tolower(c); });
 
-	/* Check for substitutions */
-	if (p->subs.contains(family))
+	/* A discovered game/RTP font wins over its configured fallback. */
+	if (p->sets[family]->empty() && p->subs.contains(family))
 		family = p->subs[family];
 
 	const FontSet &set = p->sets[family];
