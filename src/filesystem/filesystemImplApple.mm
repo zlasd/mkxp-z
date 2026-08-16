@@ -161,8 +161,17 @@ extern "C" SDL_Window *maou_mkxpz_create_embedded_sdl_window(const char *title,
                                                              Uint32 flags,
                                                              void *nativeView) {
     __block SDL_Window *window = nullptr;
+    NSString *validatedTitle = title != nullptr ? [NSString stringWithUTF8String:title] : nil;
+    if (validatedTitle == nil) {
+        validatedTitle = @"Maou Console";
+    }
     void (^createWindow)(void) = ^{
-        window = SDL_CreateWindow(title, 0, 0, width, height, flags | SDL_WINDOW_BORDERLESS);
+        window = SDL_CreateWindow(validatedTitle.UTF8String,
+                                  0,
+                                  0,
+                                  width,
+                                  height,
+                                  flags | SDL_WINDOW_BORDERLESS);
         maou_mkxpz_embed_sdl_window(window, nativeView);
     };
 
