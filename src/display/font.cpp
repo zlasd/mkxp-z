@@ -88,6 +88,11 @@ static SDL_RWops *openBundledFont()
 #ifndef MKXPZ_BUILD_XCODE
     return SDL_RWFromConstMem(BNDL_F_D(BUNDLED_FONT), BNDL_F_L(BUNDLED_FONT));
 #else
+    /* Prefer the bundled CJK face for games whose requested font is absent
+     * or lacks the glyphs used by a translated game. */
+    const std::string cjkPath = mkxp_fs::getPathForAsset("Fonts/wqymicrohei", "ttf");
+    if (SDL_RWops *cjk = SDL_RWFromFile(cjkPath.c_str(), "rb"))
+        return cjk;
     return SDL_RWFromFile(mkxp_fs::getPathForAsset("Fonts/liberation", "ttf").c_str(), "rb");
 #endif
 }
@@ -582,10 +587,10 @@ _TTF_Font *SharedFontState::getFont(std::string family,
 	if (family.empty())
 		family = p->defaultFamily;
 
-	/* Preserve a real game/RTP font when it exists. Substitutions are
-	 * fallbacks, not aliases that should shadow an encrypted archive font. */
-	if (p->sets[family]->empty() && p->subs.contains(family))
-		family = p->subs[family];
+    /* An explicit substitution is emitted only when the staged font probe
+     * found that the requested family lacks representative CJK glyphs. */
+    if (p->subs.contains(family))
+        family = p->subs[family];
 
 	/* Find out if the font asset exists */
 	const FontSet &req = p->sets[family];
@@ -717,9 +722,8 @@ bool SharedFontState::fontPresent(std::string family) const
 	std::transform(family.begin(), family.end(), family.begin(),
 		[](unsigned char c){ return std::tolower(c); });
 
-	/* A discovered game/RTP font wins over its configured fallback. */
-	if (p->sets[family]->empty() && p->subs.contains(family))
-		family = p->subs[family];
+    if (p->subs.contains(family))
+        family = p->subs[family];
 
 	const FontSet &set = p->sets[family];
 
