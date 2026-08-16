@@ -118,6 +118,7 @@ public:
 
 	/* internal */
 	_TTF_Font *getSdlFont(int outline_size);
+	_TTF_Font *getSdlFontForText(const char *text, int outline_size);
 
 private:
 	FontPrivate *p;

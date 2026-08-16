@@ -2250,7 +2250,7 @@ void Bitmap::drawText(const IntRect &rect, const char *str, int align)
     if (str[0] == ' ' && str[1] == '\0')
         return;
     
-    TTF_Font *sdlFont = p->font->getSdlFont(0);
+    TTF_Font *sdlFont = p->font->getSdlFontForText(str, 0);
     const Color &fontColor = p->font->getColor();
     const Color &outColor = p->font->getOutColor();
     
@@ -2435,7 +2435,7 @@ void Bitmap::drawText(const IntRect &rect, const char *str, int align)
         SDL_Surface *outline;
         TTF_Font *sdlOutline;
         try {
-            sdlOutline = p->font->getSdlFont(scaledOutlineSize);
+            sdlOutline = p->font->getSdlFontForText(str, scaledOutlineSize);
         } catch (const Exception &e) {
             SDL_FreeSurface(txtSurf);
             throw e;
@@ -2544,7 +2544,7 @@ IntRect Bitmap::textSize(const char *str)
     // TODO: High-res Bitmap textSize not implemented, but I think it's the same as low-res?
     // Need to double-check this.
 
-    TTF_Font *sdlFont = p->font->getSdlFont(0);
+    TTF_Font *sdlFont = p->font->getSdlFontForText(str, 0);
     
     // freetype sometimes treats the last character of the string as being
     // a pixel wider than it should be. Adding a space at the end and then

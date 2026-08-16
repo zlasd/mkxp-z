@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cctype>
 #include <array>
+#include <cstdint>
 #include <unordered_map>
 
 #ifdef MKXPZ_BUILD_XCODE
@@ -1067,4 +1068,86 @@ _TTF_Font *Font::getSdlFont(int outline_size)
 	TTF_SetFontStyle(*font, style);
 
 	return *font;
+}
+
+static bool fontHasMissingGlyph(TTF_Font *font, const char *text)
+{
+	if (!font || !text)
+		return false;
+
+	const unsigned char *cursor = reinterpret_cast<const unsigned char *>(text);
+	while (*cursor)
+	{
+		uint32_t codepoint = 0;
+		size_t length = 0;
+
+		if (*cursor < 0x80)
+		{
+			codepoint = *cursor;
+			length = 1;
+		}
+		else if ((*cursor & 0xE0) == 0xC0 && cursor[1] >= 0x80)
+		{
+			codepoint = (static_cast<uint32_t>(*cursor & 0x1F) << 6)
+			          | static_cast<uint32_t>(cursor[1] & 0x3F);
+			length = 2;
+			if (codepoint < 0x80)
+				length = 0;
+		}
+		else if ((*cursor & 0xF0) == 0xE0 && cursor[1] >= 0x80 && cursor[2] >= 0x80)
+		{
+			codepoint = (static_cast<uint32_t>(*cursor & 0x0F) << 12)
+			          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 6)
+			          | static_cast<uint32_t>(cursor[2] & 0x3F);
+			length = 3;
+			if (codepoint < 0x800 || (codepoint >= 0xD800 && codepoint <= 0xDFFF))
+				length = 0;
+		}
+		else if ((*cursor & 0xF8) == 0xF0 && cursor[1] >= 0x80 && cursor[2] >= 0x80 && cursor[3] >= 0x80)
+		{
+			codepoint = (static_cast<uint32_t>(*cursor & 0x07) << 18)
+			          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 12)
+			          | (static_cast<uint32_t>(cursor[2] & 0x3F) << 6)
+			          | static_cast<uint32_t>(cursor[3] & 0x3F);
+			length = 4;
+			if (codepoint < 0x10000 || codepoint > 0x10FFFF)
+				length = 0;
+		}
+
+		if (length == 0)
+			return true;
+
+		// Line separators are layout controls, not drawable glyphs.
+		if (codepoint != '\n' && codepoint != '\r' && codepoint != '\t'
+			&& TTF_GlyphIsProvided32(font, codepoint) == 0)
+			return true;
+
+		cursor += length;
+	}
+
+	return false;
+}
+
+_TTF_Font *Font::getSdlFontForText(const char *text, int outline_size)
+{
+	_TTF_Font *font = getSdlFont(outline_size);
+	if (!text || !*text || p->name == "maoufallback")
+		return font;
+
+	SharedFontState &fontState = shState->fontState();
+	if (!fontState.fontPresent("maoufallback") || !fontHasMissingGlyph(font, text))
+		return font;
+
+	_TTF_Font *fallback = fontState.getFont(
+		"maoufallback", p->size, p->hiresMult, outline_size);
+	if (outline_size && TTF_GetFontOutline(fallback) != outline_size)
+		TTF_SetFontOutline(fallback, outline_size);
+
+	int style = TTF_STYLE_NORMAL;
+	if (p->bold)
+		style |= TTF_STYLE_BOLD;
+	if (p->italic)
+		style |= TTF_STYLE_ITALIC;
+	TTF_SetFontStyle(fallback, style);
+	return fallback;
 }
