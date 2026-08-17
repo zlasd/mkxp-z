@@ -1070,62 +1070,96 @@ _TTF_Font *Font::getSdlFont(int outline_size)
 	return *font;
 }
 
-static bool fontHasMissingGlyph(TTF_Font *font, const char *text)
+static bool isUtf8Continuation(unsigned char value)
+{
+	return (value & 0xC0) == 0x80;
+}
+
+static bool nextUtf8Codepoint(const unsigned char *cursor,
+	                          uint32_t &codepoint,
+	                          size_t &length)
+{
+	const unsigned char first = cursor[0];
+	codepoint = 0;
+	length = 0;
+
+	if (first < 0x80)
+	{
+		codepoint = first;
+		length = 1;
+		return true;
+	}
+
+	if (first >= 0xC2 && first <= 0xDF && isUtf8Continuation(cursor[1]))
+	{
+		codepoint = (static_cast<uint32_t>(first & 0x1F) << 6)
+		          | static_cast<uint32_t>(cursor[1] & 0x3F);
+		length = 2;
+		return true;
+	}
+
+	if (first >= 0xE0 && first <= 0xEF &&
+		isUtf8Continuation(cursor[1]) && isUtf8Continuation(cursor[2]))
+	{
+		codepoint = (static_cast<uint32_t>(first & 0x0F) << 12)
+		          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 6)
+		          | static_cast<uint32_t>(cursor[2] & 0x3F);
+		if (codepoint >= 0x800 && !(codepoint >= 0xD800 && codepoint <= 0xDFFF))
+		{
+			length = 3;
+			return true;
+		}
+	}
+
+	if (first >= 0xF0 && first <= 0xF4 &&
+		isUtf8Continuation(cursor[1]) && isUtf8Continuation(cursor[2]) &&
+		isUtf8Continuation(cursor[3]))
+	{
+		codepoint = (static_cast<uint32_t>(first & 0x07) << 18)
+		          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 12)
+		          | (static_cast<uint32_t>(cursor[2] & 0x3F) << 6)
+		          | static_cast<uint32_t>(cursor[3] & 0x3F);
+		if (codepoint >= 0x10000 && codepoint <= 0x10FFFF)
+		{
+			length = 4;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool isNonDrawingCodepoint(uint32_t codepoint)
+{
+	return codepoint == '\n' || codepoint == '\r' || codepoint == '\t'
+		|| codepoint == 0x200B // zero-width space
+		|| codepoint == 0x200D // zero-width joiner
+		|| (codepoint >= 0xFE00 && codepoint <= 0xFE0F) // variation selectors
+		|| (codepoint >= 0xE0100 && codepoint <= 0xE01EF);
+}
+
+static size_t fontMissingGlyphCount(TTF_Font *font, const char *text)
 {
 	if (!font || !text)
-		return false;
+		return 0;
 
 	const unsigned char *cursor = reinterpret_cast<const unsigned char *>(text);
+	size_t missing = 0;
 	while (*cursor)
 	{
 		uint32_t codepoint = 0;
 		size_t length = 0;
-
-		if (*cursor < 0x80)
-		{
-			codepoint = *cursor;
-			length = 1;
-		}
-		else if ((*cursor & 0xE0) == 0xC0 && cursor[1] >= 0x80)
-		{
-			codepoint = (static_cast<uint32_t>(*cursor & 0x1F) << 6)
-			          | static_cast<uint32_t>(cursor[1] & 0x3F);
-			length = 2;
-			if (codepoint < 0x80)
-				length = 0;
-		}
-		else if ((*cursor & 0xF0) == 0xE0 && cursor[1] >= 0x80 && cursor[2] >= 0x80)
-		{
-			codepoint = (static_cast<uint32_t>(*cursor & 0x0F) << 12)
-			          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 6)
-			          | static_cast<uint32_t>(cursor[2] & 0x3F);
-			length = 3;
-			if (codepoint < 0x800 || (codepoint >= 0xD800 && codepoint <= 0xDFFF))
-				length = 0;
-		}
-		else if ((*cursor & 0xF8) == 0xF0 && cursor[1] >= 0x80 && cursor[2] >= 0x80 && cursor[3] >= 0x80)
-		{
-			codepoint = (static_cast<uint32_t>(*cursor & 0x07) << 18)
-			          | (static_cast<uint32_t>(cursor[1] & 0x3F) << 12)
-			          | (static_cast<uint32_t>(cursor[2] & 0x3F) << 6)
-			          | static_cast<uint32_t>(cursor[3] & 0x3F);
-			length = 4;
-			if (codepoint < 0x10000 || codepoint > 0x10FFFF)
-				length = 0;
-		}
-
-		if (length == 0)
-			return true;
+		if (!nextUtf8Codepoint(cursor, codepoint, length))
+			return missing + 1;
 
 		// Line separators are layout controls, not drawable glyphs.
-		if (codepoint != '\n' && codepoint != '\r' && codepoint != '\t'
-			&& TTF_GlyphIsProvided32(font, codepoint) == 0)
-			return true;
+		if (!isNonDrawingCodepoint(codepoint) && TTF_GlyphIsProvided32(font, codepoint) == 0)
+			++missing;
 
 		cursor += length;
 	}
 
-	return false;
+	return missing;
 }
 
 _TTF_Font *Font::getSdlFontForText(const char *text, int outline_size)
@@ -1135,19 +1169,38 @@ _TTF_Font *Font::getSdlFontForText(const char *text, int outline_size)
 		return font;
 
 	SharedFontState &fontState = shState->fontState();
-	if (!fontState.fontPresent("maoufallback") || !fontHasMissingGlyph(font, text))
+	_TTF_Font *bestFont = font;
+	size_t bestMissing = fontMissingGlyphCount(font, text);
+	if (bestMissing == 0)
 		return font;
 
-	_TTF_Font *fallback = fontState.getFont(
-		"maoufallback", p->size, p->hiresMult, outline_size);
-	if (outline_size && TTF_GetFontOutline(fallback) != outline_size)
-		TTF_SetFontOutline(fallback, outline_size);
-
+	const char *fallbackFamilies[] = {"maoufallback", "maoufallbackwide"};
 	int style = TTF_STYLE_NORMAL;
 	if (p->bold)
 		style |= TTF_STYLE_BOLD;
 	if (p->italic)
 		style |= TTF_STYLE_ITALIC;
-	TTF_SetFontStyle(fallback, style);
-	return fallback;
+
+	for (const char *family : fallbackFamilies)
+	{
+		if (p->name == family || !fontState.fontPresent(family))
+			continue;
+
+		_TTF_Font *candidate = fontState.getFont(
+			family, p->size, p->hiresMult, outline_size);
+		if (outline_size && TTF_GetFontOutline(candidate) != outline_size)
+			TTF_SetFontOutline(candidate, outline_size);
+		TTF_SetFontStyle(candidate, style);
+
+		const size_t missing = fontMissingGlyphCount(candidate, text);
+		if (missing < bestMissing)
+		{
+			bestFont = candidate;
+			bestMissing = missing;
+			if (bestMissing == 0)
+				break;
+		}
+	}
+
+	return bestFont;
 }
