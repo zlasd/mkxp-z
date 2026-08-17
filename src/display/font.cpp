@@ -1165,7 +1165,7 @@ static size_t fontMissingGlyphCount(TTF_Font *font, const char *text)
 _TTF_Font *Font::getSdlFontForText(const char *text, int outline_size)
 {
 	_TTF_Font *font = getSdlFont(outline_size);
-	if (!text || !*text || p->name == "maoufallback")
+	if (!text || !*text)
 		return font;
 
 	SharedFontState &fontState = shState->fontState();
