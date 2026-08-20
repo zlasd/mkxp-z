@@ -32,9 +32,16 @@ if non_windows && defined?(TracePoint)
   # the game's Main script starts drawing.
   maou_kgc_seen = false
   maou_trgssx_trace = TracePoint.new(:end) do |trace|
-    target_name = trace.self.respond_to?(:name) ? trace.self.name.to_s : ""
-    maou_kgc_seen = true if target_name == "KGC::BitmapExtension"
-    if maou_kgc_seen && target_name == "Bitmap" &&
+    # Never call methods on arbitrary game classes/modules from a TracePoint.
+    # Some games define a singleton `name` method which reads game state that
+    # does not exist while scripts are still loading. Compare the actual
+    # constant objects instead so this compatibility hook remains inert until
+    # KGC's Bitmap Extension is present.
+    if defined?(KGC::BitmapExtension) &&
+        trace.self.equal?(KGC::BitmapExtension)
+      maou_kgc_seen = true
+    end
+    if maou_kgc_seen && defined?(Bitmap) && trace.self.equal?(Bitmap) &&
         trace.self.method_defined?(:_draw_text)
       maou_restore_trgssx_text_methods
       maou_trgssx_trace.disable

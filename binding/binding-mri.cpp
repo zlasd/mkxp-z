@@ -1226,7 +1226,12 @@ static void showExc(VALUE exc, const BacktraceData &btData) {
     std::string ms(640, '\0');
     snprintf(&ms[0], ms.size(), "Script '%s' line %s: %s occurred.\n\n%s",
              file.c_str(), line, RSTRING_PTR(name), RSTRING_PTR(msg));
-    
+
+    // Embedded runtimes suppress the native message box. Preserve the Ruby
+    // loader failure on the shared runtime state as well, otherwise main.cpp
+    // returns success and the host mistakes an early script exception for a
+    // normal game exit.
+    shState->rtData().rgssErrorMsg = ms.c_str();
     showMsg(ms);
 }
 
