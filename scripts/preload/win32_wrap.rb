@@ -282,6 +282,84 @@ end
 			bytes.byteslice(left, right - left + 1)
 		end
 
+		def private_profile_value(path, section, key)
+			current_section = nil
+			target_section = section.to_s.downcase
+			target_key = key.to_s.downcase
+
+			File.binread(path).split(/[\r\n]+/).each do |line|
+				line = strip_ascii_bytes(line)
+				next if line.empty? || line.start_with?(";")
+				if line.start_with?("[") && line.end_with?("]")
+					current_section = strip_ascii_bytes(line[1...-1]).downcase
+					next
+				end
+				next unless current_section == target_section
+				name, raw_value = line.split("=", 2)
+				next unless name && raw_value && strip_ascii_bytes(name).downcase == target_key
+				return strip_ascii_bytes(raw_value)
+			end
+
+			return nil
+		end
+
+		def write_private_profile_value(path, section, key, value)
+			data = File.exist?(path) ? File.binread(path) : "".b
+			newline = data.include?("\r\n") ? "\r\n" : "\n"
+			lines = data.split(/\r\n|\n|\r/, -1)
+			lines.pop if !lines.empty? && lines.last.empty?
+			target_section = section.to_s.downcase
+			target_key = key.nil? ? nil : key.to_s.downcase
+
+			section_start = nil
+			section_end = lines.length
+			lines.each_with_index do |line, index|
+				stripped = strip_ascii_bytes(line)
+				next unless stripped.start_with?("[") && stripped.end_with?("]")
+				name = strip_ascii_bytes(stripped[1...-1]).downcase
+				if section_start
+					section_end = index
+					break
+				elsif name == target_section
+					section_start = index
+				end
+			end
+
+			if key.nil?
+				lines.slice!(section_start...section_end) if section_start
+			elsif section_start
+				matching_key_indexes = []
+				((section_start + 1)...section_end).each do |index|
+					name, _ = lines[index].split("=", 2)
+					matching_key_indexes << index if name && strip_ascii_bytes(name).downcase == target_key
+				end
+				if value.nil?
+					matching_key_indexes.reverse_each { |index| lines.delete_at(index) }
+				elsif matching_key_indexes.empty?
+					lines.insert(section_end, "#{key}=#{value}")
+				else
+					lines[matching_key_indexes.shift] = "#{key}=#{value}"
+					matching_key_indexes.reverse_each { |index| lines.delete_at(index) }
+				end
+			elsif !value.nil?
+				lines << "" unless lines.empty? || lines.last.empty?
+				lines << "[#{section}]"
+				lines << "#{key}=#{value}"
+			end
+
+			temporary_path = "#{path}.maou-profile-#{Process.pid}-#{rand(0x1000000)}"
+			begin
+				File.open(temporary_path, "wb") do |file|
+					file.write(lines.join(newline))
+					file.write(newline) unless lines.empty?
+				end
+				File.rename(temporary_path, path)
+			ensure
+				File.delete(temporary_path) if File.exist?(temporary_path)
+			end
+			return true
+		end
+
 		def utf8_to_utf16le_bytes(text, include_nul)
 			begin
 				codepoints = text.to_s.force_encoding("UTF-8").codepoints
@@ -331,20 +409,7 @@ end
 						value = default_value
 
 						begin
-							current_section = nil
-							File.binread(path).split(/[\r\n]+/).each do |line|
-								line = strip_ascii_bytes(line)
-								next if line.empty? || line.start_with?(";")
-								if line.start_with?("[") && line.end_with?("]")
-									current_section = line[1...-1]
-									next
-								end
-								next unless current_section == section
-								name, raw_value = line.split("=", 2)
-								next unless name && raw_value && strip_ascii_bytes(name) == key
-								value = strip_ascii_bytes(raw_value)
-								break
-							end
+							value = private_profile_value(path, section, key) || default_value
 						rescue Exception => e
 							System.puts("[Win32API] GetPrivateProfileStringA failed #{path.inspect}: #{e.class}: #{e.message}")
 						end
@@ -356,7 +421,49 @@ end
 
 						return copy_c_string(out, value, max_size)
 					end
-			end
+				end
+
+				GetPrivateProfileString = GetPrivateProfileStringA
+
+				class GetPrivateProfileIntA
+					def call(args)
+						section = args[0].to_s
+						key = args[1].to_s
+						default_value = args[2].to_i
+						path = normalize_win32_path(args[3])
+						value = private_profile_value(path, section, key)
+						return default_value unless value
+
+						text = strip_ascii_bytes(value)
+						return text.to_i(16) if text =~ /\A[+-]?0[xX][0-9a-fA-F]+/
+						return text.to_i if text =~ /\A[+-]?[0-9]+/
+						return default_value
+					rescue Exception => e
+						System.puts("[Win32API] GetPrivateProfileIntA failed #{path.inspect}: #{e.class}: #{e.message}")
+						return default_value
+					end
+				end
+
+				GetPrivateProfileInt = GetPrivateProfileIntA
+
+				class WritePrivateProfileStringA
+					def call(args)
+						section = args[0]
+						key = args[1]
+						value = args[2]
+						path = normalize_win32_path(args[3])
+						return 1 if section.nil? && key.nil? && value.nil?
+						return 0 if section.nil? || path.empty?
+
+						write_private_profile_value(path, section, key, value)
+						return 1
+					rescue Exception => e
+						System.puts("[Win32API] WritePrivateProfileStringA failed #{path.inspect}: #{e.class}: #{e.message}")
+						return 0
+					end
+				end
+
+				WritePrivateProfileString = WritePrivateProfileStringA
 
 			class MultiByteToWideChar
 				def call(args)
