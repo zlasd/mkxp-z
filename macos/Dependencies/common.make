@@ -34,12 +34,8 @@ define DOWNLOAD_CACHED
 	fi
 endef
 
-# need to set the build variable because Ruby is picky
-ifeq "$(strip $(shell uname -m))" "arm64"
+# Ruby needs an explicit build tuple when cross-compiling.
 RBUILD := aarch64-apple-darwin
-else
-RBUILD := x86_64-apple-darwin
-endif
 
 
 CONFIGURE_ENV := \
