@@ -9,6 +9,8 @@ UCHARDDET_SOURCE="$(require_source uchardet)"
 BUILD_DIR="$BUILD_ROOT/uchardet-$PLATFORM"
 
 cmake \
+    -U CMAKE_APPLE_ARCH_SYSROOTS \
+    -U CMAKE_OSX_ARCHITECTURES \
     -S "$UCHARDDET_SOURCE" \
     -B "$BUILD_DIR" \
     -G "Unix Makefiles" \

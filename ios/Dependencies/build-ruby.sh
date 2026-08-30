@@ -20,9 +20,7 @@ case "$PLATFORM" in
         RUBY_MIN_VERSION_FLAG="-mios-version-min=$DEPLOYMENT_TARGET"
         ;;
     iphonesimulator)
-        # Ruby's build system does not handle multi-arch simulator builds in a
-        # single configure pass. Build the native Apple Silicon simulator slice;
-        # x86_64 can be produced separately and lipo'd later if needed.
+        # Simulator dependencies are Apple Silicon only.
         RUBY_HOST="arm64-apple-ios-simulator"
         RUBY_ARCH_DIR="aarch64-ios-simulator"
         RUBY_ARCH_FLAGS="-arch arm64"

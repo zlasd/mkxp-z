@@ -20,7 +20,7 @@ configure_platform() {
             ;;
         iphonesimulator)
             SDK="iphonesimulator"
-            ARCHS="arm64;x86_64"
+            ARCHS="arm64"
             IOS_HOST="arm-apple-darwin"
             ;;
         *)
@@ -58,6 +58,8 @@ run_cmake_dep() {
     local build_dir="$BUILD_ROOT/$name-$PLATFORM"
 
     cmake \
+        -U CMAKE_APPLE_ARCH_SYSROOTS \
+        -U CMAKE_OSX_ARCHITECTURES \
         -S "$source" \
         -B "$build_dir" \
         -G "Unix Makefiles" \
