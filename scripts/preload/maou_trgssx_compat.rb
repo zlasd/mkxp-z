@@ -26,30 +26,29 @@ def maou_restore_trgssx_text_methods
   end
 end
 
-if non_windows && defined?(TracePoint)
-  # VX (RGSS2) has no rgss_main hook, so postloadScript is never executed.
-  # Watch KGC's final Bitmap class body instead and restore the methods before
-  # the game's Main script starts drawing.
-  maou_kgc_seen = false
-  maou_trgssx_trace = TracePoint.new(:end) do |trace|
-    # Never call methods on arbitrary game classes/modules from a TracePoint.
-    # Some games define a singleton `name` method which reads game state that
-    # does not exist while scripts are still loading. Compare the actual
-    # constant objects instead so this compatibility hook remains inert until
-    # KGC's Bitmap Extension is present.
-    if defined?(KGC::BitmapExtension) &&
-        trace.self.equal?(KGC::BitmapExtension)
-      maou_kgc_seen = true
-    end
-    if maou_kgc_seen && defined?(Bitmap) && trace.self.equal?(Bitmap) &&
-        trace.self.method_defined?(:_draw_text)
-      maou_restore_trgssx_text_methods
-      maou_trgssx_trace.disable
+if non_windows
+  # mkxp-z exposes every decompressed game script before it evaluates them.
+  # RGSS2 has no rgss_main postload hook, so append the restoration directly to
+  # the script that installs the TRGSSX-backed Bitmap methods. This runs once at
+  # the correct point in script order and avoids a process-lifetime TracePoint
+  # when a game does not contain KGC's extension.
+  maou_trgssx_patched = false
+  maou_trgssx_restore_call = "\nmaou_restore_trgssx_text_methods\n"
+  if defined?($RGSS_SCRIPTS) && $RGSS_SCRIPTS.respond_to?(:each)
+    $RGSS_SCRIPTS.each do |entry|
+      next unless entry.respond_to?(:[]) && entry.respond_to?(:[]=)
+
+      source = entry[3]
+      next unless source.is_a?(String)
+      next unless source.include?("TRGSSX") && source.include?("_draw_text")
+      next if source.include?(maou_trgssx_restore_call)
+
+      entry[3] = source + maou_trgssx_restore_call
+      maou_trgssx_patched = true
     end
   end
-  maou_trgssx_trace.enable
-elsif non_windows && defined?(KGC::BitmapExtension)
-  # Fallback for runtimes without TracePoint (the bundled macOS runtime has
-  # TracePoint, but this keeps the script safe on older ports).
-  maou_restore_trgssx_text_methods
+
+  # Direct post-script loading remains idempotent for custom runtimes.
+  maou_restore_trgssx_text_methods if !maou_trgssx_patched &&
+    defined?(KGC::BitmapExtension)
 end
