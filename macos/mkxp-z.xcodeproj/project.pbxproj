@@ -652,9 +652,9 @@
 		3B10EE1F2569348E00372D13 /* json5pp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = json5pp.hpp; sourceTree = "<group>"; };
 		3B1BC0DF266F7C0C00794D22 /* iniconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = iniconfig.h; sourceTree = "<group>"; };
 		3B1BC0E0266F7C0C00794D22 /* iniconfig.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = iniconfig.cpp; sourceTree = "<group>"; };
-		3B1C230D25A144BF0075EF5D /* libruby.3.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libruby.3.1.dylib; path = "Dependencies/build-macosx-universal/lib/libruby.3.1.dylib"; sourceTree = "<group>"; };
+		3B1C230D25A144BF0075EF5D /* libruby.3.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libruby.3.1.dylib; path = "Dependencies/build-macosx-arm64/lib/libruby.3.1.dylib"; sourceTree = "<group>"; };
 		3B1C231E25A15FB20075EF5D /* mkxp.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = mkxp.xcconfig; path = config/mkxp.xcconfig; sourceTree = "<group>"; };
-		3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = mkxp.Universal.xcconfig; path = config/mkxp.Universal.xcconfig; sourceTree = "<group>"; };
+		3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = mkxp.arm64.xcconfig; path = config/mkxp.arm64.xcconfig; sourceTree = "<group>"; };
 		3B1C235625A199370075EF5D /* shim */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = shim; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B1C236725A19B960075EF5D /* steamshim_parent.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = steamshim_parent.cpp; path = ../steamshim/steamshim_parent.cpp; sourceTree = "<group>"; };
 		3B1C236825A19B960075EF5D /* steamshim_child.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = steamshim_child.h; path = ../steamshim/steamshim_child.h; sourceTree = "<group>"; };
@@ -664,7 +664,7 @@
 		3B1C240C25A1A4C50075EF5D /* steamshim.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = steamshim.xcconfig; path = config/steamshim.xcconfig; sourceTree = "<group>"; };
 		3B1C241125A1A7120075EF5D /* libsteam_api.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsteam_api.dylib; path = Dependencies/Frameworks/steam/sdk/redistributable_bin/osx/libsteam_api.dylib; sourceTree = "<group>"; };
 		3B1C243E25A1B8D20075EF5D /* steam_appid.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = steam_appid.txt; path = config/steam_appid.txt; sourceTree = "<group>"; };
-		3B251DA526DA2CFA00E5D09B /* 3.1.0 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = 3.1.0; path = "Dependencies/build-macosx-universal/lib/ruby/3.1.0"; sourceTree = "<group>"; };
+		3B251DA526DA2CFA00E5D09B /* 3.1.0 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = 3.1.0; path = "Dependencies/build-macosx-arm64/lib/ruby/3.1.0"; sourceTree = "<group>"; };
 		3B312841259E7DC1002EAB43 /* miniffi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = miniffi.h; sourceTree = "<group>"; };
 		3B312842259E7DC1002EAB43 /* miniffi.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = miniffi.cpp; sourceTree = "<group>"; };
 		3B3F7D1725B19DEC00EA5F1C /* settingsmenu.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = settingsmenu.xib; path = views/settingsmenu.xib; sourceTree = "<group>"; };
@@ -682,8 +682,8 @@
 		3B522DB2259BC037003301C4 /* net.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = net.h; sourceTree = "<group>"; };
 		3B522DBD259BD046003301C4 /* httplib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = httplib.h; sourceTree = "<group>"; };
 		3B522DBF259BD072003301C4 /* net.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = net.cpp; sourceTree = "<group>"; };
-		3B522DC8259BFEDF003301C4 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = "Dependencies/build-macosx-universal/lib/libcrypto.a"; sourceTree = "<group>"; };
-		3B522DC9259BFEDF003301C4 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = "Dependencies/build-macosx-universal/lib/libssl.a"; sourceTree = "<group>"; };
+		3B522DC8259BFEDF003301C4 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = "Dependencies/build-macosx-arm64/lib/libcrypto.a"; sourceTree = "<group>"; };
+		3B522DC9259BFEDF003301C4 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = "Dependencies/build-macosx-arm64/lib/libssl.a"; sourceTree = "<group>"; };
 		3B522DDB259C1E53003301C4 /* http-binding.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "http-binding.cpp"; sourceTree = "<group>"; };
 		3B522DE3259C2017003301C4 /* LUrlParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LUrlParser.h; sourceTree = "<group>"; };
 		3B522DE4259C2039003301C4 /* LUrlParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = LUrlParser.cpp; sourceTree = "<group>"; };
@@ -705,21 +705,21 @@
 		3BA69451263DAB53004194EB /* log.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
 		3BA69452263DAB53004194EB /* lzw.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lzw.h; sourceTree = "<group>"; };
 		3BA69453263DAB53004194EB /* libnsgif.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = libnsgif.h; sourceTree = "<group>"; };
-		3BAEB1432673DBE700AC177B /* libuchardet.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuchardet.a; path = "Dependencies/build-macosx-universal/lib/libuchardet.a"; sourceTree = "<group>"; };
+		3BAEB1432673DBE700AC177B /* libuchardet.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuchardet.a; path = "Dependencies/build-macosx-arm64/lib/libuchardet.a"; sourceTree = "<group>"; };
 		3BBE88092705A73400A574AE /* Z-steam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Z-steam.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		3BC65D7A2584F3780063AFF1 /* libvorbisenc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbisenc.a; path = "Dependencies/build-macosx-universal/lib/libvorbisenc.a"; sourceTree = "<group>"; };
-		3BC65D7B2584F3780063AFF1 /* libphysfs.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libphysfs.a; path = "Dependencies/build-macosx-universal/lib/libphysfs.a"; sourceTree = "<group>"; };
-		3BC65D7D2584F3780063AFF1 /* libfreetype.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfreetype.a; path = "Dependencies/build-macosx-universal/lib/libfreetype.a"; sourceTree = "<group>"; };
-		3BC65D812584F3780063AFF1 /* libvorbisfile.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbisfile.a; path = "Dependencies/build-macosx-universal/lib/libvorbisfile.a"; sourceTree = "<group>"; };
-		3BC65D822584F3780063AFF1 /* libogg.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libogg.a; path = "Dependencies/build-macosx-universal/lib/libogg.a"; sourceTree = "<group>"; };
-		3BC65D832584F3780063AFF1 /* libSDL2_ttf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_ttf.a; path = "Dependencies/build-macosx-universal/lib/libSDL2_ttf.a"; sourceTree = "<group>"; };
-		3BC65D842584F3780063AFF1 /* libopenal.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopenal.a; path = "Dependencies/build-macosx-universal/lib/libopenal.a"; sourceTree = "<group>"; };
-		3BC65D852584F3780063AFF1 /* libvorbis.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbis.a; path = "Dependencies/build-macosx-universal/lib/libvorbis.a"; sourceTree = "<group>"; };
-		3BC65D862584F3780063AFF1 /* libSDL2.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2.a; path = "Dependencies/build-macosx-universal/lib/libSDL2.a"; sourceTree = "<group>"; };
-		3BC65D872584F3780063AFF1 /* libpng16.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpng16.a; path = "Dependencies/build-macosx-universal/lib/libpng16.a"; sourceTree = "<group>"; };
-		3BC65D882584F3780063AFF1 /* libpixman-1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libpixman-1.a"; path = "Dependencies/build-macosx-universal/lib/libpixman-1.a"; sourceTree = "<group>"; };
-		3BC65D892584F3910063AFF1 /* libSDL2main.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2main.a; path = "Dependencies/build-macosx-universal/lib/libSDL2main.a"; sourceTree = "<group>"; };
-		3BC65E152584F3AD0063AFF1 /* Z-universal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Z-universal.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BC65D7A2584F3780063AFF1 /* libvorbisenc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbisenc.a; path = "Dependencies/build-macosx-arm64/lib/libvorbisenc.a"; sourceTree = "<group>"; };
+		3BC65D7B2584F3780063AFF1 /* libphysfs.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libphysfs.a; path = "Dependencies/build-macosx-arm64/lib/libphysfs.a"; sourceTree = "<group>"; };
+		3BC65D7D2584F3780063AFF1 /* libfreetype.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfreetype.a; path = "Dependencies/build-macosx-arm64/lib/libfreetype.a"; sourceTree = "<group>"; };
+		3BC65D812584F3780063AFF1 /* libvorbisfile.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbisfile.a; path = "Dependencies/build-macosx-arm64/lib/libvorbisfile.a"; sourceTree = "<group>"; };
+		3BC65D822584F3780063AFF1 /* libogg.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libogg.a; path = "Dependencies/build-macosx-arm64/lib/libogg.a"; sourceTree = "<group>"; };
+		3BC65D832584F3780063AFF1 /* libSDL2_ttf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_ttf.a; path = "Dependencies/build-macosx-arm64/lib/libSDL2_ttf.a"; sourceTree = "<group>"; };
+		3BC65D842584F3780063AFF1 /* libopenal.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopenal.a; path = "Dependencies/build-macosx-arm64/lib/libopenal.a"; sourceTree = "<group>"; };
+		3BC65D852584F3780063AFF1 /* libvorbis.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbis.a; path = "Dependencies/build-macosx-arm64/lib/libvorbis.a"; sourceTree = "<group>"; };
+		3BC65D862584F3780063AFF1 /* libSDL2.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2.a; path = "Dependencies/build-macosx-arm64/lib/libSDL2.a"; sourceTree = "<group>"; };
+		3BC65D872584F3780063AFF1 /* libpng16.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpng16.a; path = "Dependencies/build-macosx-arm64/lib/libpng16.a"; sourceTree = "<group>"; };
+		3BC65D882584F3780063AFF1 /* libpixman-1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libpixman-1.a"; path = "Dependencies/build-macosx-arm64/lib/libpixman-1.a"; sourceTree = "<group>"; };
+		3BC65D892584F3910063AFF1 /* libSDL2main.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2main.a; path = "Dependencies/build-macosx-arm64/lib/libSDL2main.a"; sourceTree = "<group>"; };
+		3BC65E152584F3AD0063AFF1 /* mkxp-z.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "mkxp-z.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3BD2B3AF25651885003DAD8A /* mkxp.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = mkxp.entitlements; sourceTree = "<group>"; };
 		3BD2B46525651BF3003DAD8A /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		3BD2B46625651BFC003DAD8A /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
@@ -740,14 +740,14 @@
 		3BE081562568D3A60006849F /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		3BE081572568D3A60006849F /* ForceFeedback.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ForceFeedback.framework; path = System/Library/Frameworks/ForceFeedback.framework; sourceTree = SDKROOT; };
 		3BE081582568D3A60006849F /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
-		3BEA5D7125AC3CE300B6E359 /* libSDL2_image.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_image.a; path = "Dependencies/build-macosx-universal/lib/libSDL2_image.a"; sourceTree = "<group>"; };
-		3BF5B4BC2685881C00A3B240 /* libSDL2_sound.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_sound.a; path = "Dependencies/build-macosx-universal/lib/libSDL2_sound.a"; sourceTree = "<group>"; };
+		3BEA5D7125AC3CE300B6E359 /* libSDL2_image.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_image.a; path = "Dependencies/build-macosx-arm64/lib/libSDL2_image.a"; sourceTree = "<group>"; };
+		3BF5B4BC2685881C00A3B240 /* libSDL2_sound.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2_sound.a; path = "Dependencies/build-macosx-arm64/lib/libSDL2_sound.a"; sourceTree = "<group>"; };
 		3BFABF53267787940024C7DD /* sigslot */ = {isa = PBXFileReference; lastKnownFileType = folder; path = sigslot; sourceTree = "<group>"; };
-		3C4B4BA780D4407F24279700 /* libbrotlidec-static.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libbrotlidec-static.a"; path = "Dependencies/build-macosx-universal/lib/libbrotlidec-static.a"; sourceTree = "<group>"; };
-		667B4E3FBC5B03611D5C334E /* libhwy.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libhwy.a; path = "Dependencies/build-macosx-universal/lib/libhwy.a"; sourceTree = "<group>"; };
-		672947DA8FC50921A7ED814A /* libjxl_dec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libjxl_dec.a; path = "Dependencies/build-macosx-universal/lib/libjxl_dec.a"; sourceTree = "<group>"; };
+		3C4B4BA780D4407F24279700 /* libbrotlidec-static.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libbrotlidec-static.a"; path = "Dependencies/build-macosx-arm64/lib/libbrotlidec-static.a"; sourceTree = "<group>"; };
+		667B4E3FBC5B03611D5C334E /* libhwy.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libhwy.a; path = "Dependencies/build-macosx-arm64/lib/libhwy.a"; sourceTree = "<group>"; };
+		672947DA8FC50921A7ED814A /* libjxl_dec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libjxl_dec.a; path = "Dependencies/build-macosx-arm64/lib/libjxl_dec.a"; sourceTree = "<group>"; };
 		88734C4B8039751FD0A59FA7 /* xbrz.frag */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = xbrz.frag; path = ../shader/xbrz.frag; sourceTree = "<group>"; };
-		96563584279A5ADA003D6A75 /* libtheora.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtheora.a; path = "Dependencies/build-macosx-universal/lib/libtheora.a"; sourceTree = "<group>"; };
+		96563584279A5ADA003D6A75 /* libtheora.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtheora.a; path = "Dependencies/build-macosx-arm64/lib/libtheora.a"; sourceTree = "<group>"; };
 		9656358E279A5B74003D6A75 /* theoraplay_cvtrgb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = theoraplay_cvtrgb.h; sourceTree = "<group>"; };
 		9656358F279A5B74003D6A75 /* theoraplay.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = theoraplay.h; sourceTree = "<group>"; };
 		96563592279A5B74003D6A75 /* theoraplay.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = theoraplay.c; sourceTree = "<group>"; };
@@ -756,7 +756,7 @@
 		96573E80279152DC002C3E77 /* TouchBar.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = TouchBar.xcassets; path = views/TouchBar.xcassets; sourceTree = "<group>"; };
 		968CB90E288E46F4008BC75D /* rapidcsv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rapidcsv.h; sourceTree = "<group>"; };
 		96D8EDD028728DCA00A331EA /* gamecontrollerdb.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = gamecontrollerdb.txt; path = ../assets/gamecontrollerdb.txt; sourceTree = "<group>"; };
-		A8AA4AE49BB66C97EFAE3055 /* libbrotlicommon-static.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libbrotlicommon-static.a"; path = "Dependencies/build-macosx-universal/lib/libbrotlicommon-static.a"; sourceTree = "<group>"; };
+		A8AA4AE49BB66C97EFAE3055 /* libbrotlicommon-static.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libbrotlicommon-static.a"; path = "Dependencies/build-macosx-arm64/lib/libbrotlicommon-static.a"; sourceTree = "<group>"; };
 		CBEA4C45BE737EE0FF5A8A4C /* bicubic.frag */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; name = bicubic.frag; path = ../shader/bicubic.frag; sourceTree = "<group>"; };
 		FE5204152A08E27D0070038A /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		FE52041A2A08E58D0070038A /* lanczos3.frag */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; name = lanczos3.frag; path = ../shader/lanczos3.frag; sourceTree = "<group>"; };
@@ -1163,7 +1163,7 @@
 		3B1C231D25A15F8F0075EF5D /* mkxp */ = {
 			isa = PBXGroup;
 			children = (
-				3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */,
+				3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */,
 				3B1C231E25A15FB20075EF5D /* mkxp.xcconfig */,
 			);
 			name = mkxp;
@@ -1282,7 +1282,7 @@
 			path = utils;
 			sourceTree = "<group>";
 		};
-		3BC65D792584F3030063AFF1 /* Universal */ = {
+		3BC65D792584F3030063AFF1 /* AppleSilicon */ = {
 			isa = PBXGroup;
 			children = (
 				3B5E1EF425A880D50086FFDC /* OpenGL ES */,
@@ -1311,7 +1311,7 @@
 				A8AA4AE49BB66C97EFAE3055 /* libbrotlicommon-static.a */,
 				667B4E3FBC5B03611D5C334E /* libhwy.a */,
 			);
-			name = Universal;
+			name = AppleSilicon;
 			sourceTree = "<group>";
 		};
 		3BD2B3B2256518A1003DAD8A /* Configuration */ = {
@@ -1368,7 +1368,7 @@
 			isa = PBXGroup;
 			children = (
 				3BA08EA4256641ED00449CFF /* Assets.bundle */,
-				3BC65E152584F3AD0063AFF1 /* Z-universal.app */,
+				3BC65E152584F3AD0063AFF1 /* mkxp-z.app */,
 				3B1C235625A199370075EF5D /* shim */,
 			);
 			name = Products;
@@ -1391,7 +1391,7 @@
 			children = (
 				FE5204152A08E27D0070038A /* CoreHaptics.framework */,
 				3B1C241F25A1A84D0075EF5D /* Steam */,
-				3BC65D792584F3030063AFF1 /* Universal */,
+				3BC65D792584F3030063AFF1 /* AppleSilicon */,
 				3BD2B46425651BEB003DAD8A /* System */,
 			);
 			name = Frameworks;
@@ -1455,9 +1455,9 @@
 			productReference = 3BA08EA4256641ED00449CFF /* Assets.bundle */;
 			productType = "com.apple.product-type.bundle";
 		};
-		3BBE87802705A73400A574AE /* Z-steam-universal */ = {
+		3BBE87802705A73400A574AE /* Z-steam-arm64 */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3BBE88062705A73400A574AE /* Build configuration list for PBXNativeTarget "Z-steam-universal" */;
+			buildConfigurationList = 3BBE88062705A73400A574AE /* Build configuration list for PBXNativeTarget "Z-steam-arm64" */;
 			buildPhases = (
 				3BBE87852705A73400A574AE /* Sources */,
 				3BBE87CE2705A73400A574AE /* Frameworks */,
@@ -1475,14 +1475,14 @@
 				3BBE87812705A73400A574AE /* PBXTargetDependency */,
 				3BBE87832705A73400A574AE /* PBXTargetDependency */,
 			);
-			name = "Z-steam-universal";
+			name = "Z-steam-arm64";
 			productName = PlayerLegacy;
 			productReference = 3BBE88092705A73400A574AE /* Z-steam.app */;
 			productType = "com.apple.product-type.application";
 		};
-		3BC65D8A2584F3AD0063AFF1 /* Z-universal */ = {
+		3BC65D8A2584F3AD0063AFF1 /* mkxp-z */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3BC65E122584F3AD0063AFF1 /* Build configuration list for PBXNativeTarget "Z-universal" */;
+			buildConfigurationList = 3BC65E122584F3AD0063AFF1 /* Build configuration list for PBXNativeTarget "mkxp-z" */;
 			buildPhases = (
 				3BC65D8D2584F3AD0063AFF1 /* Sources */,
 				3BC65DDB2584F3AD0063AFF1 /* Frameworks */,
@@ -1498,9 +1498,9 @@
 			dependencies = (
 				3BC65D8B2584F3AD0063AFF1 /* PBXTargetDependency */,
 			);
-			name = "Z-universal";
+			name = "mkxp-z";
 			productName = PlayerLegacy;
-			productReference = 3BC65E152584F3AD0063AFF1 /* Z-universal.app */;
+			productReference = 3BC65E152584F3AD0063AFF1 /* mkxp-z.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -1533,8 +1533,8 @@
 			projectRoot = "";
 			targets = (
 				3BA08EA3256641ED00449CFF /* Assets */,
-				3BC65D8A2584F3AD0063AFF1 /* Z-universal */,
-				3BBE87802705A73400A574AE /* Z-steam-universal */,
+				3BC65D8A2584F3AD0063AFF1 /* mkxp-z */,
+				3BBE87802705A73400A574AE /* Z-steam-arm64 */,
 				3B1C235525A199370075EF5D /* shim */,
 			);
 		};
@@ -2087,7 +2087,7 @@
 		};
 		3BBE88072705A73400A574AE /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */;
+			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
@@ -2161,7 +2161,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Dependencies/Frameworks/ANGLE",
-					"$(PROJECT_DIR)/Dependencies/build-macosx-universal/lib",
+					"$(PROJECT_DIR)/Dependencies/build-macosx-arm64/lib",
 				);
 				MARKETING_VERSION = 2.4.2;
 				MKXPZ_EXECUTABLE_NAME = shim;
@@ -2177,7 +2177,7 @@
 		};
 		3BBE88082705A73400A574AE /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */;
+			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
@@ -2249,7 +2249,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Dependencies/Frameworks/ANGLE",
-					"$(PROJECT_DIR)/Dependencies/build-macosx-universal/lib",
+					"$(PROJECT_DIR)/Dependencies/build-macosx-arm64/lib",
 				);
 				MARKETING_VERSION = 2.4.2;
 				MKXPZ_EXECUTABLE_NAME = shim;
@@ -2265,12 +2265,12 @@
 		};
 		3BC65E132584F3AD0063AFF1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */;
+			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BUILD_ARCH = universal;
+				BUILD_ARCH = arm64;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_ENABLE_MODULES = NO;
@@ -2336,7 +2336,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Dependencies/Frameworks/ANGLE",
-					"$(PROJECT_DIR)/Dependencies/build-macosx-universal/lib",
+					"$(PROJECT_DIR)/Dependencies/build-macosx-arm64/lib",
 				);
 				MARKETING_VERSION = 2.4.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -2349,12 +2349,12 @@
 		};
 		3BC65E142584F3AD0063AFF1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.Universal.xcconfig */;
+			baseConfigurationReference = 3B1C232025A15FB20075EF5D /* mkxp.arm64.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BUILD_ARCH = universal;
+				BUILD_ARCH = arm64;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_ENABLE_MODULES = NO;
@@ -2418,7 +2418,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Dependencies/Frameworks/ANGLE",
-					"$(PROJECT_DIR)/Dependencies/build-macosx-universal/lib",
+					"$(PROJECT_DIR)/Dependencies/build-macosx-arm64/lib",
 				);
 				MARKETING_VERSION = 2.4.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -2598,7 +2598,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3BBE88062705A73400A574AE /* Build configuration list for PBXNativeTarget "Z-steam-universal" */ = {
+		3BBE88062705A73400A574AE /* Build configuration list for PBXNativeTarget "Z-steam-arm64" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				3BBE88072705A73400A574AE /* Debug */,
@@ -2607,7 +2607,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3BC65E122584F3AD0063AFF1 /* Build configuration list for PBXNativeTarget "Z-universal" */ = {
+		3BC65E122584F3AD0063AFF1 /* Build configuration list for PBXNativeTarget "mkxp-z" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				3BC65E132584F3AD0063AFF1 /* Debug */,

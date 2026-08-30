@@ -10,10 +10,8 @@ def run_build
     return code if !code
 
     printf("====================================================\n")
-    printf("Performing post-setup...\n")
-    printf("====================================================\n")
-    printf("Using Apple Silicon libraries for the project dependency path ...\n")
-    system("rm -rf build-macosx-universal && ditto build-macosx-arm64 build-macosx-universal")
+    printf("Apple Silicon dependencies are available in build-macosx-arm64.\n")
+    true
 end
 
 def fix_steam(libpath)

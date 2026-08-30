@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3BC65D8A2584F3AD0063AFF1"
-               BuildableName = "Z-universal.app"
-               BlueprintName = "Z-universal"
+               BlueprintIdentifier = "3BBE87802705A73400A574AE"
+               BuildableName = "Z-steam.app"
+               BlueprintName = "Z-steam-arm64"
                ReferencedContainer = "container:mkxp-z.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,18 +44,12 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3BC65D8A2584F3AD0063AFF1"
-            BuildableName = "Z-universal.app"
-            BlueprintName = "Z-universal"
+            BlueprintIdentifier = "3BBE87802705A73400A574AE"
+            BuildableName = "Z-steam.app"
+            BlueprintName = "Z-steam-arm64"
             ReferencedContainer = "container:mkxp-z.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <CommandLineArguments>
-         <CommandLineArgument
-            argument = "debug"
-            isEnabled = "YES">
-         </CommandLineArgument>
-      </CommandLineArguments>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "MKXPZ_FOLDER_SELECT"
@@ -74,9 +68,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3BC65D8A2584F3AD0063AFF1"
-            BuildableName = "Z-universal.app"
-            BlueprintName = "Z-universal"
+            BlueprintIdentifier = "3BBE87802705A73400A574AE"
+            BuildableName = "Z-steam.app"
+            BlueprintName = "Z-steam-arm64"
             ReferencedContainer = "container:mkxp-z.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -1,5 +1,5 @@
 //
-//  mkxp.Universal.xcconfig
+//  mkxp.arm64.xcconfig
 //
 //  Created by ゾロアーク on 1/2/21.
 //
@@ -8,7 +8,7 @@
 // Don't change any of this
 // -----------------------------
 SDK_ROOT = macosx
-BUILD_ARCH = universal
+BUILD_ARCH = arm64
 
 // Configuration settings file format documentation can be found at:
 // https://help.apple.com/xcode/#/dev745c5c974
