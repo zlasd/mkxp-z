@@ -4,6 +4,8 @@ require "tmpdir"
 
 module Graphics
 	def self.update; end
+	def self.width; 544; end
+	def self.height; 416; end
 end
 
 module System
@@ -17,6 +19,20 @@ class Win32API
 end
 
 load File.expand_path("../scripts/preload/win32_wrap.rb", __dir__)
+
+work_area = "\x00".b * 16
+system_parameters_info = Win32API.new("user32", "SystemParametersInfo", %w(i i p i), "i")
+raise "work area query failed" unless system_parameters_info.call(0x30, 0, work_area, 0) == 1
+raise "work area dimensions were wrong" unless work_area.unpack("l4") == [0, 0, 544, 416]
+
+find_window = Win32API.new("user32", "FindWindow", %w(p p), "i")
+raise "FindWindow alias failed" unless find_window.call("RGSS Player", nil) == 42
+
+desktop = Win32API.new("user32", "GetDesktopWindow", [], "i").call
+desktop_rect = "\x00".b * 16
+get_window_rect = Win32API.new("user32", "GetWindowRect", %w(i p), "i")
+raise "desktop rect query failed" unless get_window_rect.call(desktop, desktop_rect) == 1
+raise "desktop rect dimensions were wrong" unless desktop_rect.unpack("l4") == [0, 0, 544, 416]
 
 Dir.mktmpdir("mkxp-win32-profile") do |directory|
 	path = File.join(directory, "Game.ini")

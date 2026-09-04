@@ -388,6 +388,19 @@ end
 		return include_nul ? "\x00" : ""
 	end
 
+	def win32wrap_graphics_rect
+		width = 640
+		height = 480
+		begin
+			width = Graphics.width.to_i
+			height = Graphics.height.to_i
+		rescue
+		end
+		width = 640 if width <= 0
+		height = 480 if height <= 0
+		return [0, 0, width, height]
+	end
+
 def state_pressed(states, sdl_scan)
 	return states[Scancodes::SDL[sdl_scan]]
 end
@@ -583,13 +596,53 @@ end
 		class GetClientRect
 			def call(args)
 				return 0 if args[0] != 42
-				rect = [0, 0, 640, 480]
-				begin
-					rect[2] = Graphics.width
-					rect[3] = Graphics.height
-				rescue
-				end
-				memcpy_string(args[1], rect.pack('l4'))
+				memcpy_string(args[1], win32wrap_graphics_rect.pack('l4'))
+				return 1
+			end
+		end
+
+		class SystemParametersInfoA
+			SPI_GETWORKAREA = 0x30
+			def call(args)
+				return 0 unless args[0].to_i == SPI_GETWORKAREA && args[2]
+				memcpy_string(args[2], win32wrap_graphics_rect.pack('l4'))
+				return 1
+			end
+		end
+		SystemParametersInfo = SystemParametersInfoA
+
+		class GetDesktopWindow
+			def call(args)
+				return 43
+			end
+		end
+
+		class GetWindowRect
+			def call(args)
+				return 0 if args[0].to_i == 0 || !args[1]
+				memcpy_string(args[1], win32wrap_graphics_rect.pack('l4'))
+				return 1
+			end
+		end
+
+		class GetWindowLongA
+			def call(args)
+				return 0
+			end
+		end
+		GetWindowLong = GetWindowLongA
+
+		class GetSystemMetrics
+			def call(args)
+				rect = win32wrap_graphics_rect
+				return rect[2] if args[0].to_i == 0
+				return rect[3] if args[0].to_i == 1
+				return 0
+			end
+		end
+
+		class SetWindowPos
+			def call(args)
 				return 1
 			end
 		end
@@ -609,6 +662,7 @@ end
 					end
 				end
 			end
+			FindWindow = FindWindowA
 
 				class MessageBoxA
 					def call(args)
