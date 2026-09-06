@@ -14,6 +14,46 @@ class Hash
 	alias_method :index, :key unless method_defined?(:index)
 end
 
+# RGSS Ruby accepted a method/begin "else" without rescue as an unconditional
+# continuation (with a warning). Ruby 3 rejects it during compilation. Only
+# remove an else explicitly identified by the compiler, retaining line numbers
+# and leaving normal if/case/rescue branches, strings and comments untouched.
+module MaouClassicSyntax
+	def self.normalize(source)
+		return source unless defined?(RubyVM::InstructionSequence)
+		return source unless source.match?(/^[\t ]*else\b/)
+		candidate = source
+		verbose = $VERBOSE
+		begin
+			$VERBOSE = nil
+			loop do
+				begin
+					RubyVM::InstructionSequence.compile(candidate, 'maou-classic-syntax')
+					return candidate
+				rescue SyntaxError => error
+					match = error.message.match(/maou-classic-syntax:(\d+): else without rescue is useless/)
+					return source unless match
+					lines = candidate.lines
+					index = match[1].to_i - 1
+					line = lines[index]
+					return source unless line && line.match?(/\A[\t ]*else\b/)
+					lines[index] = line.sub(/\A([\t ]*)else\b/, '\1    ')
+					candidate = lines.join
+				end
+			end
+		ensure
+			$VERBOSE = verbose
+		end
+	end
+end
+
+if defined?($RGSS_SCRIPTS) && $RGSS_SCRIPTS.respond_to?(:each)
+	$RGSS_SCRIPTS.each do |entry|
+		next unless entry.is_a?(Array) && entry[3].is_a?(String)
+		entry[3] = MaouClassicSyntax.normalize(entry[3])
+	end
+end
+
 class Object
 	TRUE = true unless const_defined?("TRUE")
 	FALSE = false unless const_defined?("FALSE")

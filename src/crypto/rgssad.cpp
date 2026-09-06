@@ -97,13 +97,15 @@ struct RGSS_archiveData
 static bool
 readUint32(PHYSFS_Io *io, uint32_t &result)
 {
-	char buff[4];
+	uint8_t buff[4];
 	PHYSFS_sint64 count = io->read(io, buff, 4);
+	if (count != 4)
+		return false;
 
 	result = ((buff[0] << 0x00) & 0x000000FF) |
 	         ((buff[1] << 0x08) & 0x0000FF00) |
 	         ((buff[2] << 0x10) & 0x00FF0000) |
-	         ((buff[3] << 0x18) & 0xFF000000) ;
+	         (uint32_t(buff[3]) << 0x18) ;
 
 	return (count == 4);
 }
@@ -150,6 +152,7 @@ RGSS_ioRead(PHYSFS_Io *self, void *buffer, PHYSFS_uint64 len)
 	PHYSFS_Io *io = entry->io;
 
 	uint64_t toRead = std::min<uint64_t>(entry->data.size - entry->currentOffset, len);
+	len = toRead;
 	uint64_t offs = entry->currentOffset;
 
 	io->seek(io, entry->data.offset + offs);
@@ -188,7 +191,7 @@ RGSS_ioRead(PHYSFS_Io *self, void *buffer, PHYSFS_uint64 len)
 
 	if (preAlign > 0)
 	{
-		uint32_t dword;
+		uint32_t dword = 0;
 		io->read(io, &dword, preAlign);
 
 		/* Need to align the bytes with the
@@ -210,22 +213,24 @@ RGSS_ioRead(PHYSFS_Io *self, void *buffer, PHYSFS_uint64 len)
 
 	if (align > 0)
 	{
-		/* Double word buffer pointer */
-		uint32_t *dwBufferP = reinterpret_cast<uint32_t*>(bBufferP);
-
 		/* Read aligned dwords in one go */
 		io->read(io, bBufferP, align);
 
-		/* Then xor them */
+		/* A partial leading read can leave the caller's buffer unaligned. */
 		for (uint64_t i = 0; i < (align / 4); ++i)
-			dwBufferP[i] ^= advanceMagic(entry->currentMagic);
+		{
+			uint32_t dword;
+			memcpy(&dword, bBufferP + i * 4, 4);
+			dword ^= advanceMagic(entry->currentMagic);
+			memcpy(bBufferP + i * 4, &dword, 4);
+		}
 
 		bBufferP += align;
 	}
 
 	if (postAlign > 0)
 	{
-		uint32_t dword;
+		uint32_t dword = 0;
 		io->read(io, &dword, postAlign);
 
 		/* Bytes are already aligned with magic */
@@ -366,7 +371,7 @@ verifyHeader(PHYSFS_Io *io, char version)
 	if (!IO_READ(io, header, sizeof(header)))
 		return false;
 
-	if (strcmp(header, RGSS_HEADER))
+	if (memcmp(header, RGSS_HEADER, 7))
 		return false;
 
 	if (header[7] != version)
@@ -590,18 +595,28 @@ RGSS3_openArchive(PHYSFS_Io *io, const char *, int forWrite, int *claimed)
 	if (forWrite)
 		return NULL;
 
-	/* Version 3 */
-	if (!verifyHeader(io, 3))
+	/* Fux2Pack stores the RGSS3 directory XOR key directly, instead of
+	 * the seed used by standard RGSS3 (seed * 9 + 3). Payloads are identical.
+	 * Recognize it in the reader so imported archives remain untouched. */
+	char header[8];
+	if (!IO_READ(io, header, sizeof(header)))
 		return NULL;
-	else
-		*claimed = 1;
+	const bool fux2Pack = memcmp(header, "Fux2Pack", 8) == 0;
+	if (!fux2Pack && memcmp(header, "RGSSAD\0\3", 8) != 0)
+		return NULL;
+	*claimed = 1;
 
 	uint32_t baseMagic;
 
 	if (!readUint32(io, baseMagic))
 		return NULL;
 
-	baseMagic = (baseMagic * 9) + 3;
+	if (!fux2Pack)
+		baseMagic = (baseMagic * 9) + 3;
+
+	const PHYSFS_sint64 archiveSize = io->length(io);
+	if (archiveSize < 0)
+		return NULL;
 
 	RGSS_archiveData *data = new RGSS_archiveData;
 	data->archiveIo = io;
@@ -630,6 +645,10 @@ RGSS3_openArchive(PHYSFS_Io *io, const char *, int forWrite, int *claimed)
 			goto error;
 
 		char nameBuf[512];
+
+		if (nameLen == 0 || nameLen >= sizeof(nameBuf) ||
+		    uint64_t(offset) + size > uint64_t(archiveSize))
+			goto error;
 
 		if (!IO_READ(io, nameBuf, nameLen))
 			goto error;
