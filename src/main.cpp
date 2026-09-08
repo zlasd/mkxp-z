@@ -51,6 +51,13 @@
 #include "sharedstate.h"
 #include "eventthread.h"
 #include "maou_mkxpz.h"
+#include "maou_render_session.h"
+static MaouRenderSession maouRenderSession;
+extern "C" int maou_mkxpz_begin_render_session(uint64_t id) { return maouRenderSession.begin(id); }
+extern "C" int maou_mkxpz_cancel_render_session(uint64_t id) { return maouRenderSession.cancel(id); }
+extern "C" int maou_mkxpz_end_render_session(uint64_t id) { return maouRenderSession.finish(id); }
+extern "C" int maou_mkxpz_render_session_state(uint64_t id) { return maouRenderSession.state(id); }
+extern "C" int maou_mkxpz_render_cancelled(void) { return maouRenderSession.cancelled(); }
 #include "util/debugwriter.h"
 #include "util/exception.h"
 #include "display/gl/gl-debug.h"

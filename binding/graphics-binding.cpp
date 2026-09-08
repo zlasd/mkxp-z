@@ -21,6 +21,7 @@
 
 #include "config.h"
 #include "graphics.h"
+#include "maou_mkxpz.h"
 #include "sharedstate.h"
 #include "binding-util.h"
 #include "binding-types.h"
@@ -413,9 +414,25 @@ _rb_define_module_function(module, prop_name_s, graphics##Get##PropName); \
 _rb_define_module_function(module, prop_name_s "=", graphics##Set##PropName); \
 }
 
+RB_METHOD(graphicsMaouSessionBegin) {
+    VALUE id; rb_scan_args(argc, argv, "1", &id);
+    return rb_bool_new(maou_mkxpz_begin_render_session(NUM2ULL(id)));
+}
+RB_METHOD(graphicsMaouSessionEnd) {
+    VALUE id; rb_scan_args(argc, argv, "1", &id);
+    return rb_bool_new(maou_mkxpz_end_render_session(NUM2ULL(id)));
+}
+RB_METHOD(graphicsMaouSessionCancelled) {
+    RB_UNUSED_PARAM;
+    return rb_bool_new(maou_mkxpz_render_cancelled());
+}
+
 void graphicsBindingInit()
 {
     VALUE module = rb_define_module("Graphics");
+    _rb_define_module_function(module, "__maou_session_begin", graphicsMaouSessionBegin);
+    _rb_define_module_function(module, "__maou_session_end", graphicsMaouSessionEnd);
+    _rb_define_module_function(module, "__maou_session_cancelled?", graphicsMaouSessionCancelled);
     
     _rb_define_module_function(module, "delta", graphicsDelta);
     _rb_define_module_function(module, "update", graphicsUpdate);

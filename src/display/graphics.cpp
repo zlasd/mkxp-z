@@ -20,6 +20,7 @@
  */
 
 #include "graphics.h"
+#include "maou_mkxpz.h"
 
 #include "alstream.h"
 #include "audio.h"
@@ -1300,6 +1301,7 @@ double Graphics::lastUpdate() {
 }
 
 void Graphics::update(bool checkForShutdown) {
+    if (maou_mkxpz_render_cancelled()) return;
     p->threadData->rqWindowAdjust.wait();
     p->last_update = shState->runTime();
     
@@ -1410,6 +1412,7 @@ void Graphics::transition(int duration, const char *filename, int vague) {
         /* We need to clean up transMap properly before
          * a possible longjmp, so we manually test for
          * shutdown/reset here */
+        if (maou_mkxpz_render_cancelled()) break;
         if (p->threadData->rqTerm) {
             glState.blend.pop();
             delete transMap;
@@ -1494,6 +1497,7 @@ double Graphics::averageFrameRate() {
 
 void Graphics::wait(int duration) {
     for (int i = 0; i < duration; ++i) {
+        if (maou_mkxpz_render_cancelled()) break;
         p->checkShutDownReset();
         p->redrawScreen();
     }
@@ -1506,6 +1510,7 @@ void Graphics::fadeout(int duration) {
     float diff = 255.0f - curr;
     
     for (int i = duration - 1; i > -1; --i) {
+        if (maou_mkxpz_render_cancelled()) break;
         setBrightness(diff + (curr / duration) * i);
         
         if (p->frozen) {
@@ -1533,6 +1538,7 @@ void Graphics::fadein(int duration) {
     float diff = 255.0f - curr;
     
     for (int i = 1; i <= duration; ++i) {
+        if (maou_mkxpz_render_cancelled()) break;
         setBrightness(curr + (diff / duration) * i);
         
         if (p->frozen) {
