@@ -21,6 +21,7 @@
 
 #include "graphics.h"
 #include "maou_mkxpz.h"
+#include <mutex>
 
 #include "alstream.h"
 #include "audio.h"
@@ -46,6 +47,7 @@
 #include "util.h"
 #include "input.h"
 #include "maou_mkxpz.h"
+#include <mutex>
 #include "sprite.h"
 
 #include <SDL.h>
@@ -89,50 +91,42 @@ struct MaouPendingScreenshot {
     void *context;
 };
 
-static SDL_mutex *maouScreenshotMutex = 0;
+static std::mutex maouScreenshotMutex;
 static MaouPendingScreenshot maouPendingScreenshot;
 static bool maouHasPendingScreenshot = false;
 
-extern "C" void maou_mkxpz_request_screenshot(
-    const char *path,
-    MaouMkxpzScreenshotCallback callback,
-    void *context
-) {
-    if (!path || !callback) {
-        if (callback)
-            callback(0, path, context);
-        return;
-    }
-
-    if (!maouScreenshotMutex)
-        maouScreenshotMutex = SDL_CreateMutex();
-    if (maouScreenshotMutex)
-        SDL_LockMutex(maouScreenshotMutex);
-
-    maouPendingScreenshot.path = path;
-    maouPendingScreenshot.callback = callback;
-    maouPendingScreenshot.context = context;
-    maouHasPendingScreenshot = true;
-
-    if (maouScreenshotMutex)
-        SDL_UnlockMutex(maouScreenshotMutex);
+static bool maouConsumePendingScreenshot(MaouPendingScreenshot &request) {
+    std::lock_guard<std::mutex> lock(maouScreenshotMutex);
+    if (!maouHasPendingScreenshot) return false;
+    request = maouPendingScreenshot;
+    maouHasPendingScreenshot = false;
+    return true;
 }
 
-static bool maouConsumePendingScreenshot(MaouPendingScreenshot &request) {
-    if (!maouScreenshotMutex)
-        maouScreenshotMutex = SDL_CreateMutex();
-    if (maouScreenshotMutex)
-        SDL_LockMutex(maouScreenshotMutex);
+extern "C" void maou_mkxpz_cancel_pending_screenshot(void) {
+    MaouPendingScreenshot request;
+    if (maouConsumePendingScreenshot(request))
+        request.callback(0, request.path.c_str(), request.context);
+}
 
-    const bool hasRequest = maouHasPendingScreenshot;
-    if (hasRequest) {
-        request = maouPendingScreenshot;
-        maouHasPendingScreenshot = false;
+extern "C" void maou_mkxpz_request_screenshot(
+    const char *path, MaouMkxpzScreenshotCallback callback, void *context
+) {
+    if (!path || !callback) {
+        if (callback) callback(0, path, context);
+        return;
     }
-
-    if (maouScreenshotMutex)
-        SDL_UnlockMutex(maouScreenshotMutex);
-    return hasRequest;
+    MaouPendingScreenshot replaced;
+    bool hadPending;
+    {
+        std::lock_guard<std::mutex> lock(maouScreenshotMutex);
+        hadPending = maouHasPendingScreenshot;
+        if (hadPending) replaced = maouPendingScreenshot;
+        maouPendingScreenshot = {path, callback, context};
+        maouHasPendingScreenshot = true;
+    }
+    // Never leak a displaced callback, or invoke foreign code under the lock.
+    if (hadPending) replaced.callback(0, replaced.path.c_str(), replaced.context);
 }
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE

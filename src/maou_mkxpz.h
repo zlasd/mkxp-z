@@ -43,6 +43,9 @@ MAOU_MKXPZ_EXPORT void maou_mkxpz_request_screenshot(
     MaouMkxpzScreenshotCallback callback,
     void *context
 );
+// Cancels queued capture only. The caller must drain in-flight render work
+// before releasing session files or presenting the next game.
+MAOU_MKXPZ_EXPORT void maou_mkxpz_cancel_pending_screenshot(void);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_set_resource_callback(
     MaouMkxpzResourceCallback callback,
     void *context
