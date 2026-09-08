@@ -452,11 +452,13 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
   else
     snprintf(fullPath, sizeof(fullPath), "%s/%s", origdir, fname);
 
-  /* Deal with OSX' weird UTF-8 standards */
-  data.toNFC(fullPath);
-
+  /* Keep the enumerated spelling for PhysFS (including archive members).
+   * Normalize only lookup keys, including the per-directory filename list. */
   std::string mixedCase(fullPath);
-  std::string lowerCase = mixedCase;
+  char canonicalPath[sizeof(fullPath)];
+  strcpy(canonicalPath, fullPath);
+  data.toNFC(canonicalPath);
+  std::string lowerCase(canonicalPath);
   strTolower(lowerCase);
 
   PHYSFS_Stat stat;
@@ -475,7 +477,8 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
      * traversing and append this filename to it */
     std::vector<std::string> &list = *data.fileLists.top();
 
-    std::string lowerFilename(fname);
+    const char *canonicalFilename = strrchr(canonicalPath, '/');
+    std::string lowerFilename(canonicalFilename ? canonicalFilename + 1 : canonicalPath);
     strTolower(lowerFilename);
     list.push_back(lowerFilename);
 
