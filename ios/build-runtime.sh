@@ -26,6 +26,11 @@ esac
 
 if [ "$SKIP_DEPS" != "--skip-deps" ]; then
     "$SCRIPT_DIR/Dependencies/build-all.sh" "$PLATFORM"
+else
+    # The embedding bridge requires our SDL drawable methods. Even when reusing
+    # other dependencies, refresh this incremental target so old caches cannot
+    # produce an app with unrecognized selectors at its first rendered frame.
+    "$SCRIPT_DIR/Dependencies/build-sdl2.sh" "$PLATFORM"
 fi
 
 DEPS_DIR="$SCRIPT_DIR/Dependencies/build/$PLATFORM"

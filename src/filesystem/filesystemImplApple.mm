@@ -33,7 +33,19 @@
 @protocol MaouSDLDrawableRenderbuffer
 - (GLuint)drawableRenderbuffer;
 - (GLuint)drawableFramebuffer;
+@property (nonatomic, weak) UIView *maouHostView;
+- (BOOL)maouSyncDrawableWidth:(int *)width height:(int *)height scale:(float *)scale;
 @end
+
+// Render-thread entry: SDL defers UIKit drawable changes until this handoff.
+extern "C" bool maou_mkxpz_sync_ios_drawable(SDL_Window *window, int *width,
+                                             int *height, float *scale) {
+    SDL_SysWMinfo info{};
+    SDL_VERSION(&info.version);
+    if (!SDL_GetWindowWMInfo(window, &info)) return false;
+    id<MaouSDLDrawableRenderbuffer> view = (id)info.info.uikit.window.rootViewController.view;
+    return [view maouSyncDrawableWidth:width height:height scale:scale];
+}
 
 extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window) {
     @autoreleasepool {
@@ -127,6 +139,9 @@ extern "C" void maou_mkxpz_embed_sdl_window(SDL_Window *window, void *nativeView
         [sdlView removeFromSuperview];
         sdlView.hidden = NO;
         sdlView.opaque = YES;
+        if ([sdlView respondsToSelector:@selector(setMaouHostView:)]) {
+            [(id<MaouSDLDrawableRenderbuffer>)sdlView setMaouHostView:hostView];
+        }
         sdlView.frame = hostView.bounds;
         sdlView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [hostView addSubview:sdlView];

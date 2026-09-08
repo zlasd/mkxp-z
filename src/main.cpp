@@ -182,6 +182,8 @@ struct MaouInitGLTask {
 static void maouInitGLTaskRun(void *context) {
   MaouInitGLTask *task = static_cast<MaouInitGLTask *>(context);
   task->result = initGL(task->window, *task->config, task->threadData);
+  // The RGSS thread takes ownership after initialization completes.
+  if (task->result) SDL_GL_MakeCurrent(task->window, nullptr);
 }
 
 struct MaouEmbedWindowTask {
@@ -415,6 +417,12 @@ void maou_mkxpz_resize(int width, int height)
     if (!maouActiveWindow || width <= 0 || height <= 0)
         return;
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // UIKit owns the embedded view bounds. Resizing SDL's detached window can
+    // overwrite them with screen coordinates; drawable updates are deferred
+    // by layoutSubviews and consumed by Graphics::checkResize.
+    if (maouEmbeddedRuntime) return;
+#endif
     SDL_SetWindowSize(maouActiveWindow, width, height);
 
     SDL_Event event;

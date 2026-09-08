@@ -130,6 +130,8 @@ extern "C" void maou_mkxpz_request_screenshot(
 }
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" bool maou_mkxpz_is_embedded_runtime();
+extern "C" bool maou_mkxpz_sync_ios_drawable(SDL_Window *, int *, int *, float *);
 extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window);
 extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *window);
 
@@ -1046,15 +1048,26 @@ struct GraphicsPrivate {
         return true;
     }
     
-    void checkResize(bool skipIntScaleBuffer = false) {
+    void checkResize(bool skipIntScaleBuffer = false, bool force = false) {
+        bool resized = force;
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+        if (maou_mkxpz_is_embedded_runtime()) {
+            // Dimensions and GL storage belong to one frame-boundary update.
+            // SDL window events may describe a detached window or an old buffer.
+            float scale = backingScaleFactor;
+            resized = maou_mkxpz_sync_ios_drawable(threadData->window,
+                                                  &winSize.x, &winSize.y, &scale) || resized;
+            if (resized) backingScaleFactor = scale;
+        } else
+#endif
         if (threadData->windowSizeMsg.poll(winSize)) {
-            /* Query the actual size in pixels, not units */
             Vec2i drawableSize(winSize);
             threadData->drawableSizeMsg.poll(drawableSize);
-            
-            backingScaleFactor = drawableSize.x / winSize.x;
+            backingScaleFactor = (float)drawableSize.x / winSize.x;
             winSize = drawableSize;
-            
+            resized = true;
+        }
+        if (resized) {
             /* Make sure integer buffers are rebuilt before screen offsets are
              * calculated so we have the final allocated buffer size ready */
             if (integerScaleActive && findHighestIntegerScale() && !skipIntScaleBuffer)
@@ -1493,6 +1506,7 @@ void Graphics::wait(int duration) {
     for (int i = 0; i < duration; ++i) {
         if (maou_mkxpz_render_cancelled()) break;
         p->checkShutDownReset();
+        p->checkResize();
         p->redrawScreen();
     }
 }
@@ -1508,9 +1522,10 @@ void Graphics::fadeout(int duration) {
         setBrightness(diff + (curr / duration) * i);
         
         if (p->frozen) {
+            p->checkResize();
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->winSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1536,9 +1551,10 @@ void Graphics::fadein(int duration) {
         setBrightness(curr + (diff / duration) * i);
         
         if (p->frozen) {
+            p->checkResize();
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->winSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1633,6 +1649,14 @@ void Graphics::resizeScreen(int width, int height) {
     
     glState.scissorBox.set(IntRect(0, 0, p->scRes.x, p->scRes.y));
     
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    if (maou_mkxpz_is_embedded_runtime()) {
+        // RGSS resolution can change without any UIKit layout. Recompute the
+        // aspect fit now rather than waiting for a detached SDL window event.
+        p->checkResize(false, true);
+        return;
+    }
+#endif
     shState->eThread().requestWindowResize(width, height);
 }
 
