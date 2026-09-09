@@ -938,12 +938,12 @@ void SyncPoint::waitMainSync()
     mainSync.waitForUnlock();
 }
 
-void SyncPoint::passSecondarySync()
+void SyncPoint::passSecondarySync(const AtomicFlag *cancel)
 {
     if (!secondSync.locked)
         return;
     
-    secondSync.waitForUnlock();
+    secondSync.waitForUnlock(cancel);
 }
 
 SyncPoint::Util::Util()
@@ -973,12 +973,16 @@ void SyncPoint::Util::unlock(bool multi)
         SDL_CondSignal(cond);
 }
 
-void SyncPoint::Util::waitForUnlock()
+void SyncPoint::Util::waitForUnlock(const AtomicFlag *cancel)
 {
     SDL_LockMutex(mut);
     
-    while (locked)
-        SDL_CondWait(cond, mut);
+    while (locked && !(cancel && *cancel)) {
+        // Session teardown must be able to join audio workers while the app
+        // remains suspended; it must not resume other suspended workers.
+        if (cancel) SDL_CondWaitTimeout(cond, mut, 10);
+        else SDL_CondWait(cond, mut);
+    }
     
     SDL_UnlockMutex(mut);
 }

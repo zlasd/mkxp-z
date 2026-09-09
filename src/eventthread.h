@@ -209,7 +209,7 @@ struct SyncPoint
 	void waitMainSync();
 
 	/* Used by secondary (audio) threads */
-	void passSecondarySync();
+	void passSecondarySync(const AtomicFlag *cancel = 0);
 
 private:
 	struct Util
@@ -219,7 +219,7 @@ private:
 
 		void lock();
 		void unlock(bool multi);
-		void waitForUnlock();
+		void waitForUnlock(const AtomicFlag *cancel = 0);
 
 		AtomicFlag locked;
 		SDL_mutex *mut;

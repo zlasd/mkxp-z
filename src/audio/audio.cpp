@@ -28,15 +28,23 @@
 #include "eventthread.h"
 #include "sdl-util.h"
 #include "exception.h"
+#include "maou_mkxpz.h"
 
 #include <string>
 #include <vector>
+#include <exception>
 
 #include <SDL_thread.h>
 #include <SDL_timer.h>
 
 struct AudioPrivate
 {
+    uint64_t sessionGeneration = 0;
+    bool sessionClosed = false;
+
+    void guardSession() {
+        if (sessionClosed) throw Exception(Exception::RGSSError, "Audio session is closed");
+    }
     
     std::vector<AudioStream*> bgmTracks;
 	AudioStream bgs;
@@ -80,15 +88,27 @@ struct AudioPrivate
             bgmTracks.push_back(new AudioStream(ALStream::Looped, id.c_str()));
         }
         
-		meWatch.state = MeNotPlaying;
-		meWatch.thread = createSDLThread
-			<AudioPrivate, &AudioPrivate::meWatchFun>(this, "audio_mewatch");
+		meWatch.thread = 0;
+		startWatch();
 	}
+
+    void startWatch() {
+        if (meWatch.thread) return;
+        meWatch.state = MeNotPlaying;
+        meWatch.termReq.clear();
+        meWatch.thread = createSDLThread<AudioPrivate, &AudioPrivate::meWatchFun>(this, "audio_mewatch");
+        if (!meWatch.thread) throw Exception(Exception::MKXPError, "Cannot start audio watcher");
+    }
+
+    void stopWatch() {
+        meWatch.termReq.set();
+        if (meWatch.thread) SDL_WaitThread(meWatch.thread, 0);
+        meWatch.thread = 0;
+    }
 
 	~AudioPrivate()
 	{
-		meWatch.termReq.set();
-		SDL_WaitThread(meWatch.thread, 0);
+		stopWatch();
         for (auto track : bgmTracks)
             delete track;
 	}
@@ -108,7 +128,7 @@ struct AudioPrivate
 
 		while (true)
 		{
-			syncPoint.passSecondarySync();
+			syncPoint.passSecondarySync(&meWatch.termReq);
 
 			if (meWatch.termReq)
 				return;
@@ -295,6 +315,7 @@ void Audio::bgmPlay(const char *filename,
                     double pos,
                     int track)
 {
+    p->guardSession();
     if (track == -127) {
         for (int i = 0; i < (int)p->bgmTracks.size(); i++) {
             if (i == 0) {
@@ -358,6 +379,7 @@ void Audio::bgsPlay(const char *filename,
                     int pitch,
                     double pos)
 {
+    p->guardSession();
 	p->bgs.play(filename, volume, pitch, pos);
 }
 
@@ -376,6 +398,7 @@ void Audio::mePlay(const char *filename,
                    int volume,
                    int pitch)
 {
+    p->guardSession();
 	p->me.play(filename, volume, pitch);
 }
 
@@ -394,6 +417,7 @@ void Audio::sePlay(const char *filename,
                    int volume,
                    int pitch)
 {
+    p->guardSession();
 	p->se.play(filename, volume, pitch);
 }
 
@@ -429,3 +453,48 @@ void Audio::reset()
 }
 
 Audio::~Audio() { delete p; }
+
+void Audio::beginSession(uint64_t generation)
+{
+    if (!generation || generation != maou_mkxpz_render_generation()
+        || generation <= p->sessionGeneration || (p->sessionGeneration && !p->sessionClosed))
+        throw Exception(Exception::RGSSError, "Stale or overlapping audio session");
+    p->startWatch();
+    p->sessionGeneration = generation;
+    p->sessionClosed = false;
+}
+
+MaouAudioReport Audio::sessionResources(uint64_t generation, bool release)
+{
+    if (!generation || generation != maou_mkxpz_render_generation() || generation != p->sessionGeneration)
+        throw Exception(Exception::RGSSError, "Stale audio resource session");
+    std::vector<AudioStream *> streams = p->bgmTracks;
+    streams.push_back(&p->bgs); streams.push_back(&p->me);
+    if (release) {
+        p->sessionClosed = true;
+        p->stopWatch(); // No BGM resumption while streams are being closed.
+        std::exception_ptr failure;
+        for (auto stream : streams) {
+            try { stream->releaseSession(); }
+            catch (...) { if (!failure) failure = std::current_exception(); }
+        }
+        p->se.releaseSession();
+        p->volumeRatio = 1.0f;
+        if (failure) std::rethrow_exception(failure);
+    }
+    MaouAudioReport report;
+    report.closed = p->sessionClosed;
+    report.watchThreads = p->meWatch.thread ? 1 : 0;
+    for (auto audio : streams) {
+        audio->lockStream();
+        report.streams += audio->stream.source ? 1 : 0;
+        report.streamThreads += audio->stream.thread ? 1 : 0;
+        report.fadeThreads += (audio->fade.thread ? 1 : 0) + (audio->fadeIn.thread ? 1 : 0);
+        for (auto buffer : audio->stream.alBuf) report.streamPCMBytes += AL::Buffer::getSize(buffer);
+        audio->unlockStream();
+    }
+    report.seBuffers = p->se.buffers.getSize();
+    report.seCacheBytes = p->se.bufferBytes;
+    for (auto buffer : p->se.atchBufs) report.seAttachments += buffer ? 1 : 0;
+    return report;
+}

@@ -184,6 +184,21 @@ void SoundEmitter::stop()
 		AL::Source::stop(alSrcs[i]);
 }
 
+void SoundEmitter::releaseSession()
+{
+	stop();
+	for (size_t i = 0; i < srcCount; ++i) {
+		AL::Source::detachBuffer(alSrcs[i]);
+		if (atchBufs[i]) SoundBuffer::deref(atchBufs[i]);
+		atchBufs[i] = 0; srcPrio[i] = i;
+	}
+	for (auto iter = bufferHash.cbegin(); iter != bufferHash.cend(); ++iter) {
+		buffers.remove(iter->second->link);
+		SoundBuffer::deref(iter->second);
+	}
+	bufferHash.clear(); bufferBytes = 0;
+}
+
 struct SoundOpenHandler : FileSystem::OpenHandler
 {
 	SoundBuffer *buffer;

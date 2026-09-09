@@ -169,6 +169,21 @@ void AudioStream::stop()
 	unlockStream();
 }
 
+void AudioStream::releaseSession()
+{
+	// MeWatch must already be joined. Never join fade threads under streamMut.
+	finiFadeOutInt();
+	lockStream();
+	try {
+		stream.releaseSession();
+		current.filename.clear(); current.volume = current.pitch = 1.0f;
+		extPaused = false; noResumeStop = false;
+		for (size_t i = 0; i < VolumeTypeCount; ++i) volumes[i] = 1.0f;
+		updateVolume(); stream.setPitch(1.0f);
+	} catch (...) { unlockStream(); throw; }
+	unlockStream();
+}
+
 void AudioStream::fadeOut(int duration)
 {
 	lockStream();

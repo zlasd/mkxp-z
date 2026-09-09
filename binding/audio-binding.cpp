@@ -180,6 +180,35 @@ RB_METHOD(audioReset)
 	return Qnil;
 }
 
+RB_METHOD_GUARD(audioMaouSessionBegin)
+{
+    VALUE id; rb_scan_args(argc, argv, "1", &id);
+    shState->audio().beginSession(NUM2ULL(id));
+    return Qtrue;
+}
+RB_METHOD_GUARD_END
+
+RB_METHOD_GUARD(audioMaouSessionResources)
+{
+    VALUE id, release; rb_scan_args(argc, argv, "2", &id, &release);
+    auto report = shState->audio().sessionResources(NUM2ULL(id), RTEST(release));
+    VALUE result = rb_hash_new();
+    rb_hash_aset(result, rb_str_new_cstr("generation"), id);
+    rb_hash_aset(result, rb_str_new_cstr("closed"), rb_bool_new(report.closed));
+#define AUDIO_REPORT_FIELD(name) rb_hash_aset(result, rb_str_new_cstr(#name), ULL2NUM(report.name));
+    AUDIO_REPORT_FIELD(streams)
+    AUDIO_REPORT_FIELD(streamThreads)
+    AUDIO_REPORT_FIELD(fadeThreads)
+    AUDIO_REPORT_FIELD(watchThreads)
+    AUDIO_REPORT_FIELD(seBuffers)
+    AUDIO_REPORT_FIELD(seAttachments)
+    AUDIO_REPORT_FIELD(seCacheBytes)
+    AUDIO_REPORT_FIELD(streamPCMBytes)
+#undef AUDIO_REPORT_FIELD
+    return result;
+}
+RB_METHOD_GUARD_END
+
 
 #define BIND_PLAY_STOP(entity) \
 	_rb_define_module_function(module, #entity "_play", audio_##entity##Play); \
@@ -200,6 +229,8 @@ void
 audioBindingInit()
 {
 	VALUE module = rb_define_module("Audio");
+	_rb_define_module_function(module, "__maou_session_begin", audioMaouSessionBegin);
+	_rb_define_module_function(module, "__maou_session_resources", audioMaouSessionResources);
 
 	BIND_PLAY_STOP_FADE( bgm );
     _rb_define_module_function(module, "bgm_volume", audio_bgmGetVolume);

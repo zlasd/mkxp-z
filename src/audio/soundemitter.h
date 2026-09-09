@@ -57,6 +57,7 @@ struct SoundEmitter
 	          int pitch);
 
 	void stop();
+	void releaseSession();
 
 private:
 	SoundBuffer *allocateBuffer(const std::string &filename);
