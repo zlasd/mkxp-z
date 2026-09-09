@@ -252,11 +252,15 @@ bool filesystemImpl::fileExists(const char *path) {
 
 std::string filesystemImpl::contentsOfFileAsString(const char *path) {
     @autoreleasepool {
-        NSString *fileContents = [NSString stringWithContentsOfFile: PATHTONS(path)];
+        // Return bytes, as on other platforms. NSString's legacy implicit
+        // encoding can turn UTF-8 paths into valid but incorrect text before
+        // the configuration reader gets to detect/convert the encoding.
+        NSData *fileContents = [NSData dataWithContentsOfFile: PATHTONS(path)];
         if (fileContents == nil)
             throw Exception(Exception::NoFileError, "Failed to read file at %s", path);
         
-        return std::string(fileContents.UTF8String);
+        if (!fileContents.length) return std::string();
+        return std::string(static_cast<const char *>(fileContents.bytes), fileContents.length);
     }
 }
 
