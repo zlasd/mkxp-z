@@ -26,6 +26,42 @@
 #include "binding-util.h"
 #include "binding-types.h"
 #include "exception.h"
+#include "filesystem.h"
+
+RB_METHOD_GUARD(graphicsMaouFilesystemBegin) {
+    VALUE id, paths;
+    rb_scan_args(argc, argv, "11", &id, &paths);
+    std::vector<MaouMountPath> mounts;
+    if (!NIL_P(paths)) {
+        Check_Type(paths, T_ARRAY);
+        if (RARRAY_LEN(paths) > 256) rb_raise(rb_eArgError, "Too many filesystem mounts");
+        for (long i = 0; i < RARRAY_LEN(paths); ++i) {
+            VALUE pair = rb_ary_entry(paths, i);
+            Check_Type(pair, T_ARRAY);
+            if (RARRAY_LEN(pair) != 2) rb_raise(rb_eArgError, "Expected path and mountpoint");
+            VALUE path = rb_ary_entry(pair, 0), point = rb_ary_entry(pair, 1);
+            mounts.push_back({StringValueCStr(path), StringValueCStr(point)});
+        }
+    }
+    GFX_GUARD_EXC(shState->fileSystem().beginSession(NUM2ULL(id), NIL_P(paths) ? 0 : &mounts););
+    return Qtrue;
+}
+RB_METHOD_GUARD_END
+
+RB_METHOD_GUARD(graphicsMaouFilesystemResources) {
+    VALUE id, release; rb_scan_args(argc, argv, "2", &id, &release);
+    MaouFilesystemReport report;
+    GFX_GUARD_EXC(report = shState->fileSystem().sessionResources(NUM2ULL(id), RTEST(release)););
+    VALUE result = rb_hash_new();
+    rb_hash_aset(result, rb_str_new_cstr("generation"), id);
+    rb_hash_aset(result, rb_str_new_cstr("closed"), rb_bool_new(report.closed));
+    rb_hash_aset(result, rb_str_new_cstr("mounts"), ULL2NUM(report.mounts));
+    rb_hash_aset(result, rb_str_new_cstr("pathEntries"), ULL2NUM(report.pathEntries));
+    rb_hash_aset(result, rb_str_new_cstr("directories"), ULL2NUM(report.directories));
+    rb_hash_aset(result, rb_str_new_cstr("failures"), ULL2NUM(report.failures));
+    return result;
+}
+RB_METHOD_GUARD_END
 
 RB_METHOD(graphicsDelta) {
     RB_UNUSED_PARAM;
@@ -448,6 +484,8 @@ void graphicsBindingInit()
     _rb_define_module_function(module, "__maou_session_end", graphicsMaouSessionEnd);
     _rb_define_module_function(module, "__maou_session_cancelled?", graphicsMaouSessionCancelled);
     _rb_define_module_function(module, "__maou_session_resources", graphicsMaouSessionResources);
+    _rb_define_module_function(module, "__maou_filesystem_begin", graphicsMaouFilesystemBegin);
+    _rb_define_module_function(module, "__maou_filesystem_resources", graphicsMaouFilesystemResources);
     
     _rb_define_module_function(module, "delta", graphicsDelta);
     _rb_define_module_function(module, "update", graphicsUpdate);

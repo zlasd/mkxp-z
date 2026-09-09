@@ -323,7 +323,36 @@ struct FileSystemPrivate {
   /* This is for compatibility with games that take Windows'
    * case insensitivity for granted */
   bool havePathCache;
+  bool closed = false, poisoned = false;
+  uint64_t generation = 0, failures = 0;
+  std::vector<MaouMountPath> startupPaths;
+
+  void requireOpen() const {
+    if (closed) throw Exception(Exception::RGSSError, "Filesystem session is closed");
+  }
+  void clearCache() { pathCache.clear(); fileLists.clear(); }
 };
+
+static std::vector<MaouMountPath> mountedPaths() {
+  std::vector<MaouMountPath> paths;
+  char **list = PHYSFS_getSearchPath();
+  if (!list) throw Exception(Exception::PHYSFSError, "Cannot inspect filesystem mounts");
+  for (char **entry = list; *entry; ++entry) {
+    const char *point = PHYSFS_getMountPoint(*entry);
+    paths.push_back({*entry, point ? point : "/"});
+  }
+  PHYSFS_freeList(list);
+  return paths;
+}
+
+// Continue releasing independent mounts when one still has an open file.
+static uint64_t unmountPaths() {
+  uint64_t failures = 0;
+  const auto paths = mountedPaths();
+  for (auto entry = paths.rbegin(); entry != paths.rend(); ++entry)
+    if (!PHYSFS_unmount(entry->path.c_str())) ++failures;
+  return failures;
+}
 
 static void throwPhysfsError(const char *desc) {
   PHYSFS_ErrorCode ec = PHYSFS_getLastErrorCode();
@@ -369,6 +398,7 @@ FileSystem::~FileSystem() {
 }
 
 void FileSystem::addPath(const char *path, const char *mountpoint, bool reload) {
+  p->requireOpen();
   /* Try the normal mount first */
     int state = PHYSFS_mount(path, mountpoint, 1);
   if (!state) {
@@ -376,8 +406,10 @@ void FileSystem::addPath(const char *path, const char *mountpoint, bool reload) 
      * SDL_RWops */
     PHYSFS_Io *io = createSDLRWIo(path);
 
-    if (io)
-      state = PHYSFS_mountIo(io, path, 0, 1);
+    if (io) {
+      state = PHYSFS_mountIo(io, path, mountpoint, 1);
+      if (!state) io->destroy(io); // PhysFS takes ownership only on success.
+    }
   }
     if (!state) {
         PHYSFS_ErrorCode err = PHYSFS_getLastErrorCode();
@@ -388,13 +420,54 @@ void FileSystem::addPath(const char *path, const char *mountpoint, bool reload) 
 }
 
 void FileSystem::removePath(const char *path, bool reload) {
-    
+    p->requireOpen();
     if (!PHYSFS_unmount(path)) {
         PHYSFS_ErrorCode err = PHYSFS_getLastErrorCode();
         throw Exception(Exception::PHYSFSError, "Failed to unmount %s (%s)", path, PHYSFS_getErrorByCode(err));
     }
     
     if (reload) reloadPathCache();
+}
+
+void FileSystem::beginSession(uint64_t generation, const std::vector<MaouMountPath> *paths) {
+  if (!generation || generation != maou_mkxpz_render_generation() || generation <= p->generation
+      || p->poisoned || (p->generation && !p->closed))
+    throw Exception(Exception::RGSSError, "Stale or overlapping filesystem session");
+  if (!p->generation) p->startupPaths = mountedPaths();
+  const auto desired = paths ? *paths : p->startupPaths;
+  p->generation = generation; p->closed = true; p->clearCache();
+  try {
+    p->failures = unmountPaths();
+    if (p->failures) throw Exception(Exception::PHYSFSError, "Previous filesystem mounts are still open");
+    p->closed = false; // Synchronous render-thread transaction; no guest runs here.
+    for (const auto &entry : desired) addPath(entry.path.c_str(), entry.mountpoint.c_str());
+    if (mountedPaths().size() != desired.size())
+      throw Exception(Exception::PHYSFSError, "Duplicate filesystem mount paths");
+    if (p->havePathCache) createPathCache();
+  } catch (...) {
+    p->closed = true; p->poisoned = true; p->clearCache();
+    // Previous game has ended. Roll back to an empty namespace, never a mix
+    // of old and new roots. Any remaining mounts are retained for diagnosis.
+    ++p->failures;
+    try { p->failures += unmountPaths(); } catch (...) { ++p->failures; }
+    throw;
+  }
+}
+
+MaouFilesystemReport FileSystem::sessionResources(uint64_t generation, bool release) {
+  if (!generation || generation != maou_mkxpz_render_generation() || generation != p->generation)
+    throw Exception(Exception::RGSSError, "Stale filesystem resource session");
+  if (release && !p->closed) {
+    p->closed = true; p->poisoned = true; p->clearCache();
+    p->failures += unmountPaths();
+    p->poisoned = p->failures != 0;
+  }
+  MaouFilesystemReport report;
+  report.closed = p->closed; report.failures = p->failures;
+  report.mounts = mountedPaths().size();
+  report.pathEntries = std::distance(p->pathCache.cbegin(), p->pathCache.cend());
+  report.directories = std::distance(p->fileLists.cbegin(), p->fileLists.cend());
+  return report;
 }
 
 struct CacheEnumData {
@@ -462,7 +535,7 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
   strTolower(lowerCase);
 
   PHYSFS_Stat stat;
-  PHYSFS_stat(fullPath, &stat);
+  if (!PHYSFS_stat(fullPath, &stat)) return PHYSFS_ENUM_ERROR;
 
   if (stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
     /* Create a new list for this directory */
@@ -470,8 +543,9 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
 
     /* Iterate over its contents */
     data.fileLists.push(&list);
-    PHYSFS_enumerate(fullPath, cacheEnumCB, d);
+    const int enumerated = PHYSFS_enumerate(fullPath, cacheEnumCB, d);
     data.fileLists.pop();
+    if (!enumerated) return PHYSFS_ENUM_ERROR;
   } else {
     /* Get the file list for the directory we're currently
      * traversing and append this filename to it */
@@ -490,11 +564,13 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
 }
 
 void FileSystem::createPathCache() {
+  p->requireOpen();
   Debug() << "Loading path cache...";
 
   CacheEnumData data(p);
   data.fileLists.push(&p->fileLists[""]);
-  PHYSFS_enumerate("", cacheEnumCB, &data);
+  if (!PHYSFS_enumerate("", cacheEnumCB, &data))
+    throwPhysfsError("Cannot build path cache");
 
   p->havePathCache = true;
 
@@ -660,6 +736,7 @@ openReadEnumCB(void *d, const char *dirpath, const char *filename) {
 }
 
 void FileSystem::openRead(OpenHandler &handler, const char *filename) {
+  p->requireOpen();
   std::string filename_nm = normalize(filename, false, false);
   maouReportResourceIfNeeded(filename_nm);
   char buffer[512];
@@ -710,7 +787,7 @@ void FileSystem::openRead(OpenHandler &handler, const char *filename) {
 
 void FileSystem::openReadRaw(SDL_RWops &ops, const char *filename,
                              bool freeOnClose) {
-
+  p->requireOpen();
   PHYSFS_File *handle = PHYSFS_openRead(normalize(filename, 0, 0).c_str());
 
   if (!handle)
@@ -726,6 +803,7 @@ std::string FileSystem::normalize(const char *pathname, bool preferred,
 }
 
 bool FileSystem::exists(const char *filename) {
+  if (p->closed) return false;
   return PHYSFS_exists(normalize(filename, false, false).c_str());
 }
 
