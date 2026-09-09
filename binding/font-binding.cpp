@@ -24,6 +24,7 @@
 #include "exception.h"
 #include "font.h"
 #include "sharedstate.h"
+#include "graphics.h"
 
 #include <string.h>
 
@@ -244,8 +245,32 @@ RB_METHOD(FontSetDefaultColor) {
     rb_define_class_method(klass, prop_name_s "=", Klass##Set##PropName);      \
   }
 
+RB_METHOD_GUARD(fontMaouSessionBegin) {
+  VALUE id; rb_scan_args(argc, argv, "1", &id);
+  GFX_GUARD_EXC(shState->fontState().beginSession(NUM2ULL(id)););
+  return Qtrue;
+}
+RB_METHOD_GUARD_END
+
+RB_METHOD_GUARD(fontMaouSessionResources) {
+  VALUE id, release; rb_scan_args(argc, argv, "2", &id, &release);
+  MaouFontReport report;
+  GFX_GUARD_EXC(report = shState->fontState().sessionResources(NUM2ULL(id), RTEST(release)););
+  VALUE result = rb_hash_new();
+  rb_hash_aset(result, rb_str_new_cstr("generation"), id);
+  rb_hash_aset(result, rb_str_new_cstr("closed"), rb_bool_new(report.closed));
+  rb_hash_aset(result, rb_str_new_cstr("openFonts"), ULL2NUM(report.openFonts));
+  rb_hash_aset(result, rb_str_new_cstr("sizeEntries"), ULL2NUM(report.sizeEntries));
+  rb_hash_aset(result, rb_str_new_cstr("families"), ULL2NUM(report.families));
+  rb_hash_aset(result, rb_str_new_cstr("cacheEpoch"), ULL2NUM(report.cacheEpoch));
+  return result;
+}
+RB_METHOD_GUARD_END
+
 void fontBindingInit() {
   VALUE klass = rb_define_class("Font", rb_cObject);
+  rb_define_class_method(klass, "__maou_session_begin", fontMaouSessionBegin);
+  rb_define_class_method(klass, "__maou_session_resources", fontMaouSessionResources);
 #if RAPI_FULL > 187
   rb_define_alloc_func(klass, classAllocate<&FontType>);
 #else
