@@ -460,6 +460,9 @@ void Audio::beginSession(uint64_t generation)
     if (!generation || generation != maou_mkxpz_render_generation()
         || generation <= p->sessionGeneration || (p->sessionGeneration && !p->sessionClosed))
         throw Exception(Exception::RGSSError, "Stale or overlapping audio session");
+    // RGSS1/2 eagerly initializes MIDI during SharedState construction. Move
+    // that unused startup pool out of the first game's clean resource boundary.
+    if (!p->sessionGeneration) shState->midiState().releaseSession();
     p->startWatch();
     p->sessionGeneration = generation;
     p->sessionClosed = false;
