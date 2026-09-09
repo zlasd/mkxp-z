@@ -162,7 +162,7 @@ DEF_FADE( me )
 
 DEF_PLAY_STOP( se )
 
-RB_METHOD(audioSetupMidi)
+RB_METHOD_GUARD(audioSetupMidi)
 {
 	RB_UNUSED_PARAM;
 
@@ -170,6 +170,7 @@ RB_METHOD(audioSetupMidi)
 
 	return Qnil;
 }
+RB_METHOD_GUARD_END
 
 RB_METHOD(audioReset)
 {
@@ -200,6 +201,9 @@ RB_METHOD_GUARD(audioMaouSessionResources)
     AUDIO_REPORT_FIELD(streamThreads)
     AUDIO_REPORT_FIELD(fadeThreads)
     AUDIO_REPORT_FIELD(watchThreads)
+    AUDIO_REPORT_FIELD(midiSynths)
+    AUDIO_REPORT_FIELD(midiInUse)
+    AUDIO_REPORT_FIELD(midiSettings)
     AUDIO_REPORT_FIELD(seBuffers)
     AUDIO_REPORT_FIELD(seAttachments)
     AUDIO_REPORT_FIELD(seCacheBytes)

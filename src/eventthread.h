@@ -98,6 +98,7 @@ public:
 	void requestShowCursor(bool mode);
     
     void requestTextInputMode(bool mode);
+    void resetSessionInput();
     
     void requestSettingsMenu();
 
@@ -118,6 +119,7 @@ public:
 	void notifyGameScreenChange(const SDL_Rect &screen);
 
 private:
+    SDL_atomic_t inputResetSerial{}, inputResetAck{};
 	static int eventFilter(void *, SDL_Event*);
 
 	void resetInputStates();

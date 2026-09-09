@@ -60,7 +60,7 @@ public:
 
 	static _TTF_Font *openBundled(int size);
     void setDefaultFontFamily(const std::string &family);
-	void beginSession(uint64_t generation);
+	void beginSession(uint64_t generation, const std::vector<std::string> *substitutions = 0);
 	MaouFontReport sessionResources(uint64_t generation, bool release);
 	uint64_t cacheEpoch() const;
 

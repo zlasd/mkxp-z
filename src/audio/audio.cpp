@@ -428,6 +428,7 @@ void Audio::seStop()
 
 void Audio::setupMidi()
 {
+    p->guardSession();
 	shState->midiState().initIfNeeded(shState->config());
 }
 
@@ -479,11 +480,17 @@ MaouAudioReport Audio::sessionResources(uint64_t generation, bool release)
             catch (...) { if (!failure) failure = std::current_exception(); }
         }
         p->se.releaseSession();
+        try { shState->midiState().releaseSession(); }
+        catch (...) { if (!failure) failure = std::current_exception(); }
         p->volumeRatio = 1.0f;
         if (failure) std::rethrow_exception(failure);
     }
     MaouAudioReport report;
     report.closed = p->sessionClosed;
+    const auto &midi = shState->midiState();
+    report.midiSynths = midi.synths.size();
+    report.midiSettings = midi.flSettings ? 1 : 0;
+    for (const auto &synth : midi.synths) report.midiInUse += synth.inUse ? 1 : 0;
     report.watchThreads = p->meWatch.thread ? 1 : 0;
     for (auto audio : streams) {
         audio->lockStream();

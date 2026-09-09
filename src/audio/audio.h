@@ -27,6 +27,7 @@
 struct MaouAudioReport {
 	uint64_t streams = 0, streamThreads = 0, fadeThreads = 0, watchThreads = 0;
 	uint64_t seBuffers = 0, seAttachments = 0, seCacheBytes = 0, streamPCMBytes = 0;
+	uint64_t midiSynths = 0, midiInUse = 0, midiSettings = 0;
 	bool closed = false;
 };
 

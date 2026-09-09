@@ -247,13 +247,24 @@ uint64_t SharedFontState::cacheEpoch() const
 	return p->epoch;
 }
 
-void SharedFontState::beginSession(uint64_t generation)
+void SharedFontState::beginSession(uint64_t generation, const std::vector<std::string> *substitutions)
 {
 	if (!generation || generation != maou_mkxpz_render_generation()
 	    || generation <= p->generation || (p->generation && !p->closed))
 		throw Exception(Exception::RGSSError, "Stale or overlapping font session");
 	p->closed = true; p->generation = generation;
 	p->clearCache(); p->sets.clear();
+	if (substitutions) {
+		p->subs.clear();
+		for (auto raw : *substitutions) {
+			// Match Config::read: font lookup keys and both substitution sides
+			// use lowercase, including descriptors supplied after startup.
+			std::transform(raw.begin(), raw.end(), raw.begin(),
+			    [](unsigned char c) { return std::tolower(c); });
+			const auto sep = raw.find('>');
+			if (sep != std::string::npos) p->subs.insert(raw.substr(0, sep), raw.substr(sep + 1));
+		}
+	}
 	shState->fileSystem().initFontSets(*this);
 	p->closed = false;
 }

@@ -246,8 +246,17 @@ RB_METHOD(FontSetDefaultColor) {
   }
 
 RB_METHOD_GUARD(fontMaouSessionBegin) {
-  VALUE id; rb_scan_args(argc, argv, "1", &id);
-  GFX_GUARD_EXC(shState->fontState().beginSession(NUM2ULL(id)););
+  VALUE id, substitutions; rb_scan_args(argc, argv, "11", &id, &substitutions);
+  std::vector<std::string> names;
+  if (!NIL_P(substitutions)) {
+    Check_Type(substitutions, T_ARRAY);
+    if (RARRAY_LEN(substitutions) > 256) rb_raise(rb_eArgError, "Too many font substitutions");
+    for (long i = 0; i < RARRAY_LEN(substitutions); ++i) {
+      VALUE name = rb_ary_entry(substitutions, i);
+      names.emplace_back(StringValueCStr(name));
+    }
+  }
+  GFX_GUARD_EXC(shState->fontState().beginSession(NUM2ULL(id), NIL_P(substitutions) ? 0 : &names););
   return Qtrue;
 }
 RB_METHOD_GUARD_END
