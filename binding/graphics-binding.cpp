@@ -451,8 +451,16 @@ _rb_define_module_function(module, prop_name_s "=", graphics##Set##PropName); \
 }
 
 RB_METHOD(graphicsMaouSessionBegin) {
-    VALUE id; rb_scan_args(argc, argv, "1", &id);
-    return rb_bool_new(maou_mkxpz_begin_render_session(NUM2ULL(id)));
+    VALUE id, version; rb_scan_args(argc, argv, "11", &id, &version);
+    const int requested = NIL_P(version) ? rgssVer : NUM2INT(version);
+    if ((requested != 2 && requested != 3) ||
+        (requested != rgssVer && !SharedState::rgssSessionSwitching))
+        rb_raise(rb_eArgError, "Unsupported managed RGSS version");
+    if (!maou_mkxpz_begin_render_session(NUM2ULL(id))) return Qfalse;
+    // Native calls and disposal are serialized on this render thread. The
+    // coordinator must confirm the previous generation's cleanup first.
+    rgssVer = requested;
+    return Qtrue;
 }
 RB_METHOD(graphicsMaouSessionEnd) {
     VALUE id; rb_scan_args(argc, argv, "1", &id);

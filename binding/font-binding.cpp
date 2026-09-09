@@ -25,6 +25,7 @@
 #include "font.h"
 #include "sharedstate.h"
 #include "graphics.h"
+#include "maou_mkxpz.h"
 
 #include <string.h>
 
@@ -276,10 +277,30 @@ RB_METHOD_GUARD(fontMaouSessionResources) {
 }
 RB_METHOD_GUARD_END
 
+RB_METHOD_GUARD(fontMaouSessionDefaults) {
+  VALUE id; rb_scan_args(argc, argv, "1", &id);
+  if (!NUM2ULL(id) || NUM2ULL(id) != maou_mkxpz_render_generation())
+    rb_raise(rb_eRuntimeError, "Stale font session");
+  GFX_GUARD_EXC(
+    Font::initDefaults(shState->fontState());
+    Font::setDefaultBold(false); Font::setDefaultItalic(false);
+    Color color(255,255,255,255); Color outline(0,0,0,128);
+    Font::setDefaultColor(color); Font::setDefaultOutColor(outline);
+    shState->defaultFont() = Font();
+  );
+  VALUE names = rb_ary_new();
+  for (const auto &name : Font::getInitialDefaultNames())
+    rb_ary_push(names, rb_utf8_str_new_cstr(name.c_str()));
+  rb_iv_set(self, "default_name", RARRAY_LEN(names) == 1 ? rb_ary_entry(names, 0) : names);
+  return rb_iv_get(self, "default_name");
+}
+RB_METHOD_GUARD_END
+
 void fontBindingInit() {
   VALUE klass = rb_define_class("Font", rb_cObject);
   rb_define_class_method(klass, "__maou_session_begin", fontMaouSessionBegin);
   rb_define_class_method(klass, "__maou_session_resources", fontMaouSessionResources);
+  rb_define_class_method(klass, "__maou_session_defaults", fontMaouSessionDefaults);
 #if RAPI_FULL > 187
   rb_define_alloc_func(klass, classAllocate<&FontType>);
 #else

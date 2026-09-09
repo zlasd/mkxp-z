@@ -173,6 +173,10 @@ json5pp::value rb2json(VALUE v);
 RB_METHOD(mkxpParseCSV);
 
 static void mriBindingInit() {
+    // The trusted persistent renderer registers the VX/Ace union once. Game
+    // scripts live in disposable WASM guests with a version-specific API.
+    const int startupVersion = rgssVer;
+    if (SharedState::rgssSessionSwitching) rgssVer = 3;
     tableBindingInit();
     etcBindingInit();
     fontBindingInit();
@@ -192,6 +196,7 @@ static void mriBindingInit() {
     inputBindingInit();
     audioBindingInit();
     graphicsBindingInit();
+    rgssVer = startupVersion;
     
     fileIntBindingInit();
     

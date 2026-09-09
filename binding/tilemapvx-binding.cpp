@@ -166,6 +166,9 @@ void tilemapVXBindingInit() {
     
     if (rgssVer == 3) {
         INIT_PROP_BIND(TilemapVX, Flags, "flags");
+        if (SharedState::rgssSessionSwitching) {
+            INIT_PROP_BIND(TilemapVX, Flags, "passages");
+        }
     } else {
         INIT_PROP_BIND(TilemapVX, Flags, "passages");
     }

@@ -1057,6 +1057,7 @@ void Font::initDefaultDynAttribs()
 void Font::initDefaults(const SharedFontState &sfs)
 {
 	std::vector<std::string> &names = FontPrivate::initialDefaultNames;
+	names.clear();
 
 	switch (rgssVer)
 	{
