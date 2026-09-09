@@ -426,6 +426,20 @@ RB_METHOD(graphicsMaouSessionCancelled) {
     RB_UNUSED_PARAM;
     return rb_bool_new(maou_mkxpz_render_cancelled());
 }
+RB_METHOD_GUARD(graphicsMaouSessionResources) {
+    VALUE id, release; rb_scan_args(argc, argv, "2", &id, &release);
+    MaouResourceReport report;
+    GFX_GUARD_EXC(report = shState->graphics().sessionResources(NUM2ULL(id), RTEST(release)););
+    VALUE result = rb_hash_new();
+    rb_hash_aset(result, rb_str_new_cstr("generation"), id);
+    rb_hash_aset(result, rb_str_new_cstr("tracked"), ULL2NUM(report.tracked));
+    rb_hash_aset(result, rb_str_new_cstr("live"), ULL2NUM(report.live));
+    rb_hash_aset(result, rb_str_new_cstr("released"), ULL2NUM(report.released));
+    rb_hash_aset(result, rb_str_new_cstr("failures"), ULL2NUM(report.failures));
+    rb_hash_aset(result, rb_str_new_cstr("pooledBytes"), ULL2NUM(report.pooledBytes));
+    return result;
+}
+RB_METHOD_GUARD_END
 
 void graphicsBindingInit()
 {
@@ -433,6 +447,7 @@ void graphicsBindingInit()
     _rb_define_module_function(module, "__maou_session_begin", graphicsMaouSessionBegin);
     _rb_define_module_function(module, "__maou_session_end", graphicsMaouSessionEnd);
     _rb_define_module_function(module, "__maou_session_cancelled?", graphicsMaouSessionCancelled);
+    _rb_define_module_function(module, "__maou_session_resources", graphicsMaouSessionResources);
     
     _rb_define_module_function(module, "delta", graphicsDelta);
     _rb_define_module_function(module, "update", graphicsUpdate);

@@ -36,6 +36,8 @@ public:
 	void release(TEXFBO &obj);
 
 	void disable();
+    void purge();
+    uint32_t cachedBytes() const;
 
 private:
 	TexPoolPrivate *p;

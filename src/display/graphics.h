@@ -23,6 +23,7 @@
 #define GRAPHICS_H
 
 #include "util.h"
+#include "maou_session_resources.h"
 
 class Scene;
 class Bitmap;
@@ -45,6 +46,7 @@ public:
 	                const char *filename = "",
 	                int vague = 40);
 	void frameReset();
+    MaouResourceReport sessionResources(uint64_t generation, bool release);
 
 	DECL_ATTR( FrameRate,  int )
 	DECL_ATTR( FrameCount, int )

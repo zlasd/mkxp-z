@@ -58,6 +58,7 @@ extern "C" int maou_mkxpz_cancel_render_session(uint64_t id) { return maouRender
 extern "C" int maou_mkxpz_end_render_session(uint64_t id) { return maouRenderSession.finish(id); }
 extern "C" int maou_mkxpz_render_session_state(uint64_t id) { return maouRenderSession.state(id); }
 extern "C" int maou_mkxpz_render_cancelled(void) { return maouRenderSession.cancelled(); }
+extern "C" uint64_t maou_mkxpz_render_generation(void) { return maouRenderSession.generation(); }
 #include "util/debugwriter.h"
 #include "util/exception.h"
 #include "display/gl/gl-debug.h"

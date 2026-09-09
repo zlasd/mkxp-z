@@ -36,6 +36,7 @@ MAOU_MKXPZ_EXPORT int maou_mkxpz_cancel_render_session(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_end_render_session(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_render_session_state(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_render_cancelled(void);
+MAOU_MKXPZ_EXPORT uint64_t maou_mkxpz_render_generation(void);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_send_key(int sdlScancode, int keyDown, int ctrl);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_resize(int width, int height);
 MAOU_MKXPZ_EXPORT void maou_mkxpz_request_screenshot(

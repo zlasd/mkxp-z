@@ -29,5 +29,6 @@ public:
         return id && current && (current >> 1) == id ? (current & 1 ? 2 : 1) : 0;
     }
     bool cancelled() const { return value.load() & 1; }
+    uint64_t generation() const { return value.load() >> 1; }
 };
 #endif

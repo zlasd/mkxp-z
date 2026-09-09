@@ -918,6 +918,7 @@ struct GraphicsPrivate {
     /* Global list of all live Disposables
      * (disposed on reset) */
     IntruList<Disposable> dispList;
+    MaouSessionResources<Disposable> sessionResources;
     
     GraphicsPrivate(RGSSThreadData *rtData)
     : scResLores(DEF_SCREEN_W, DEF_SCREEN_H),
@@ -1910,8 +1911,24 @@ void Graphics::unlock(bool force) {
     p->releaseLock(force);
 }
 
-void Graphics::addDisposable(Disposable *d) { p->dispList.append(d->link); }
+void Graphics::addDisposable(Disposable *d) {
+    if (!p->sessionResources.add(d, maou_mkxpz_render_generation()))
+        throw Exception(Exception::RGSSError, "Render session is closing");
+    p->dispList.append(d->link);
+}
 
-void Graphics::remDisposable(Disposable *d) { p->dispList.remove(d->link); }
+void Graphics::remDisposable(Disposable *d) {
+    p->sessionResources.remove(d);
+    p->dispList.remove(d->link);
+}
+
+MaouResourceReport Graphics::sessionResources(uint64_t generation, bool release) {
+    if (!generation || maou_mkxpz_render_generation() != generation)
+        throw Exception(Exception::RGSSError, "Stale resource session");
+    auto report = release ? p->sessionResources.release(generation) : p->sessionResources.inspect(generation);
+    if (release) shState->texPool().purge();
+    report.pooledBytes = shState->texPool().cachedBytes();
+    return report;
+}
 
 #undef GRAPHICS_THREAD_LOCK
