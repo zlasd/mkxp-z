@@ -22,6 +22,7 @@
 #include "graphics.h"
 #include "maou_mkxpz.h"
 #include <mutex>
+#include <atomic>
 
 #include "alstream.h"
 #include "audio.h"
@@ -85,6 +86,15 @@
 #define MOVIE_AUDIO_BUFFER_SIZE 2048
 #define AUDIO_BUFFER_LEN_MS 2000
 
+static std::atomic<uint64_t> maouPresentedGeneration{0};
+extern "C" uint64_t maou_mkxpz_presented_generation(void) {
+    return maouPresentedGeneration.load();
+}
+static void maouRecordPresentation(uint64_t generation) {
+    if (generation && maou_mkxpz_render_session_state(generation) == 1)
+        maouPresentedGeneration.store(generation);
+}
+
 struct MaouPendingScreenshot {
     std::string path;
     MaouMkxpzScreenshotCallback callback;
@@ -136,8 +146,10 @@ extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window);
 extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *window);
 
 static void maouSwapWindow(SDL_Window *window) {
+    const uint64_t generation = maou_mkxpz_render_generation();
     maou_mkxpz_prepare_ios_gl_present(window);
     SDL_GL_SwapWindow(window);
+    maouRecordPresentation(generation);
 }
 
 static void maouBlitBeginScreen(SDL_Window *window, const Vec2i &size, int scaleIsSpecial) {
@@ -151,7 +163,9 @@ static void maouBlitBeginScreen(SDL_Window *window, const Vec2i &size, int scale
 }
 #else
 static void maouSwapWindow(SDL_Window *window) {
+    const uint64_t generation = maou_mkxpz_render_generation();
     SDL_GL_SwapWindow(window);
+    maouRecordPresentation(generation);
 }
 
 static void maouBlitBeginScreen(SDL_Window *, const Vec2i &size, int scaleIsSpecial) {
@@ -1926,6 +1940,18 @@ MaouResourceReport Graphics::sessionResources(uint64_t generation, bool release)
     if (!generation || maou_mkxpz_render_generation() != generation)
         throw Exception(Exception::RGSSError, "Stale resource session");
     auto report = release ? p->sessionResources.release(generation) : p->sessionResources.inspect(generation);
+    if (release && report.live == 0 && report.failures == 0) {
+        // Persistent render targets outlive the game's Disposable objects.
+        // Clear both live and frozen frames on the render thread, including
+        // cancellation cleanup where Graphics.update would return early.
+        p->frozen = false;
+        p->screen.getPP().clearBuffers();
+        glState.clearColor.pushSet(Vec4(0, 0, 0, 1));
+        FBO::bind(p->frozenScene.fbo); FBO::clear();
+        if (p->integerScaleBuffer.fbo.gl) { FBO::bind(p->integerScaleBuffer.fbo); FBO::clear(); }
+        FBO::unbind();
+        glState.clearColor.pop();
+    }
     if (release) shState->texPool().purge();
     report.pooledBytes = shState->texPool().cachedBytes();
     return report;
