@@ -101,8 +101,8 @@ void bitmapBindingInit();
 void spriteBindingInit();
 void viewportBindingInit();
 void planeBindingInit();
-void windowBindingInit();
-void tilemapBindingInit();
+void windowBindingInit(const char *name = "Window");
+void tilemapBindingInit(const char *name = "Tilemap");
 void windowVXBindingInit();
 void tilemapVXBindingInit();
 
@@ -173,7 +173,7 @@ json5pp::value rb2json(VALUE v);
 RB_METHOD(mkxpParseCSV);
 
 static void mriBindingInit() {
-    // The trusted persistent renderer registers the VX/Ace union once. Game
+    // The trusted persistent renderer registers the XP/VX/Ace union once. Game
     // scripts live in disposable WASM guests with a version-specific API.
     const int startupVersion = rgssVer;
     if (SharedState::rgssSessionSwitching) rgssVer = 3;
@@ -185,6 +185,10 @@ static void mriBindingInit() {
     viewportBindingInit();
     planeBindingInit();
     
+    if (SharedState::rgssSessionSwitching) {
+        windowBindingInit("MaouXPWindow");
+        tilemapBindingInit("MaouXPTilemap");
+    }
     if (rgssVer == 1) {
         windowBindingInit();
         tilemapBindingInit();

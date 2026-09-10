@@ -165,7 +165,7 @@ DEF_GFX_PROP_I(Tilemap, OY)
 DEF_GFX_PROP_I(Tilemap, Opacity)
 DEF_GFX_PROP_I(Tilemap, BlendType)
 
-void tilemapBindingInit() {
+void tilemapBindingInit(const char *name) {
     VALUE klass = rb_define_class("TilemapAutotiles", rb_cObject);
 #if RAPI_FULL > 187
     rb_define_alloc_func(klass, classAllocate<&TilemapAutotilesType>);
@@ -174,7 +174,7 @@ void tilemapBindingInit() {
     _rb_define_method(klass, "[]=", tilemapAutotilesSet);
     _rb_define_method(klass, "[]", tilemapAutotilesGet);
     
-    klass = rb_define_class("Tilemap", rb_cObject);
+    klass = rb_define_class(name, rb_cObject);
 #if RAPI_FULL > 187
     rb_define_alloc_func(klass, classAllocate<&TilemapType>);
 #else

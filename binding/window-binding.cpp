@@ -73,8 +73,8 @@ DEF_GFX_PROP_I(Window, Opacity)
 DEF_GFX_PROP_I(Window, BackOpacity)
 DEF_GFX_PROP_I(Window, ContentsOpacity)
 
-void windowBindingInit() {
-    VALUE klass = rb_define_class("Window", rb_cObject);
+void windowBindingInit(const char *name) {
+    VALUE klass = rb_define_class(name, rb_cObject);
 #if RAPI_FULL > 187
     rb_define_alloc_func(klass, classAllocate<&WindowType>);
 #else

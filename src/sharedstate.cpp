@@ -187,7 +187,7 @@ void SharedState::initInstance(RGSSThreadData *threadData)
 	 * Font depends on SharedState existing */
 
 	rgssVersion = threadData->config.rgssVersion;
-	rgssSessionSwitching = rgssVersion >= 2 && SDL_getenv("MAOU_RGSS_FD") != nullptr;
+	rgssSessionSwitching = rgssVersion >= 1 && SDL_getenv("MAOU_RGSS_FD") != nullptr;
     
 	_globalIBO = new GlobalIBO();
 	_globalIBO->ensureSize(1);

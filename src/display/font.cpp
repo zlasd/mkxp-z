@@ -1064,6 +1064,7 @@ void Font::initDefaults(const SharedFontState &sfs)
 	case 1 :
 		// FIXME: Japanese version has "MS PGothic" instead
 		names.push_back("Arial");
+		FontPrivate::defaultSize = 22;
 		break;
 
 	case 2 :
