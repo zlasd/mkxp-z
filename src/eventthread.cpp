@@ -260,8 +260,13 @@ void EventThread::process(RGSSThreadData &rtData)
             case SDL_MOUSEBUTTONDOWN :
             case SDL_MOUSEBUTTONUP :
             case SDL_MOUSEMOTION :
+#if !defined(__APPLE__) || !TARGET_OS_IPHONE
                 if (event.button.which == SDL_TOUCH_MOUSEID)
                     continue;
+#endif
+                // UIKit canvas touches use SDL's synthesized mouse events.
+                // Keep them on iOS so RGSS mouse APIs and Win32 plugins see
+                // the same position and balanced button state as a mouse.
                 break;
                 
             case SDL_FINGERDOWN :
