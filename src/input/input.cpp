@@ -1268,6 +1268,13 @@ void Input::update()
 void Input::resetSession()
 {
     shState->eThread().resetSessionInput(); // Drain earlier SDL input before clearing RGSS history.
+    if (SharedState::rgssSessionSwitching) {
+        // Defaults differ: XP Z is A and C is confirm; VX/Ace Z is confirm.
+        // This trusted service disables native settings; the host owns mappings.
+        Config config = shState->rtData().config;
+        config.rgssVersion = rgssVer;
+        p->applyBindingDesc(genDefaultBindings(config));
+    }
     p->clearBuffer(); p->swapBuffers(); p->clearBuffer();
     memset(p->axisStateArray, 0, sizeof(p->axisStateArray));
     memset(p->mousePos, 0, sizeof(p->mousePos)); p->mouseInWindow = false;
