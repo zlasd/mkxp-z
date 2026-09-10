@@ -37,6 +37,7 @@ struct RGSSThreadData;
 class Input
 {
 public:
+    void resetSession();
 	enum ButtonCode
 	{
 		None = 0,

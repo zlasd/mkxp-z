@@ -29,7 +29,18 @@
 #include "util/exception.h"
 #include "input/input.h"
 #include "sharedstate.h"
+#include "graphics.h"
+#include "maou_mkxpz.h"
 #include "src/util/util.h"
+
+RB_METHOD_GUARD(inputMaouSessionReset) {
+    VALUE id; rb_scan_args(argc, argv, "1", &id);
+    if (!NUM2ULL(id) || NUM2ULL(id) != maou_mkxpz_render_generation())
+        rb_raise(rb_eRuntimeError, "Stale input session");
+    GFX_GUARD_EXC(shState->input().resetSession(););
+    return Qtrue;
+}
+RB_METHOD_GUARD_END
 
 RB_METHOD(inputDelta) {
     RB_UNUSED_PARAM;
@@ -570,8 +581,21 @@ struct {
 
 static elementsN(buttonCodes);
 
+RB_METHOD(inputMaouSessionConstants) {
+    VALUE id; rb_scan_args(argc, argv, "1", &id);
+    if (!NUM2ULL(id) || NUM2ULL(id) != maou_mkxpz_render_generation())
+        rb_raise(rb_eRuntimeError, "Stale input session");
+    VALUE result = rb_hash_new();
+    for (size_t i = 0; i < buttonCodesN; ++i)
+        rb_hash_aset(result, rb_str_new_cstr(buttonCodes[i].str), rgssVer >= 3 ?
+            ID2SYM(rb_intern(buttonCodes[i].str)) : INT2FIX(buttonCodes[i].val));
+    return result;
+}
+
 void inputBindingInit() {
     VALUE module = rb_define_module("Input");
+    _rb_define_module_function(module, "__maou_session_reset", inputMaouSessionReset);
+    _rb_define_module_function(module, "__maou_session_constants", inputMaouSessionConstants);
     
     _rb_define_module_function(module, "delta", inputDelta);
     _rb_define_module_function(module, "update", inputUpdate);

@@ -115,6 +115,7 @@ struct SharedState
 
 	static SharedState *instance;
 	static int rgssVersion;
+	static bool rgssSessionSwitching;
 
 	/* This function will throw an Exception instance
 	 * on initialization error */

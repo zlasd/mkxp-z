@@ -22,6 +22,15 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
+#include <cstdint>
+
+struct MaouAudioReport {
+	uint64_t streams = 0, streamThreads = 0, fadeThreads = 0, watchThreads = 0;
+	uint64_t seBuffers = 0, seAttachments = 0, seCacheBytes = 0, streamPCMBytes = 0;
+	uint64_t midiSynths = 0, midiInUse = 0, midiSettings = 0;
+	bool closed = false;
+};
+
 /* Concerning the 'pos' parameter:
  *   RGSS3 actually doesn't specify a format for this,
  *   it's only implied that it is a numerical value
@@ -71,6 +80,8 @@ public:
 	double bgsPos();
 
 	void reset();
+	void beginSession(uint64_t generation);
+	MaouAudioReport sessionResources(uint64_t generation, bool release);
 
 private:
 	Audio(RGSSThreadData &rtData);

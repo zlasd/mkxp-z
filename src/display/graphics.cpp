@@ -20,6 +20,9 @@
  */
 
 #include "graphics.h"
+#include "maou_mkxpz.h"
+#include <mutex>
+#include <atomic>
 
 #include "alstream.h"
 #include "audio.h"
@@ -45,6 +48,7 @@
 #include "util.h"
 #include "input.h"
 #include "maou_mkxpz.h"
+#include <mutex>
 #include "sprite.h"
 
 #include <SDL.h>
@@ -82,65 +86,70 @@
 #define MOVIE_AUDIO_BUFFER_SIZE 2048
 #define AUDIO_BUFFER_LEN_MS 2000
 
+static std::atomic<uint64_t> maouPresentedGeneration{0};
+extern "C" uint64_t maou_mkxpz_presented_generation(void) {
+    return maouPresentedGeneration.load();
+}
+static void maouRecordPresentation(uint64_t generation) {
+    if (generation && maou_mkxpz_render_session_state(generation) == 1)
+        maouPresentedGeneration.store(generation);
+}
+
 struct MaouPendingScreenshot {
     std::string path;
     MaouMkxpzScreenshotCallback callback;
     void *context;
 };
 
-static SDL_mutex *maouScreenshotMutex = 0;
+static std::mutex maouScreenshotMutex;
 static MaouPendingScreenshot maouPendingScreenshot;
 static bool maouHasPendingScreenshot = false;
 
-extern "C" void maou_mkxpz_request_screenshot(
-    const char *path,
-    MaouMkxpzScreenshotCallback callback,
-    void *context
-) {
-    if (!path || !callback) {
-        if (callback)
-            callback(0, path, context);
-        return;
-    }
-
-    if (!maouScreenshotMutex)
-        maouScreenshotMutex = SDL_CreateMutex();
-    if (maouScreenshotMutex)
-        SDL_LockMutex(maouScreenshotMutex);
-
-    maouPendingScreenshot.path = path;
-    maouPendingScreenshot.callback = callback;
-    maouPendingScreenshot.context = context;
-    maouHasPendingScreenshot = true;
-
-    if (maouScreenshotMutex)
-        SDL_UnlockMutex(maouScreenshotMutex);
+static bool maouConsumePendingScreenshot(MaouPendingScreenshot &request) {
+    std::lock_guard<std::mutex> lock(maouScreenshotMutex);
+    if (!maouHasPendingScreenshot) return false;
+    request = maouPendingScreenshot;
+    maouHasPendingScreenshot = false;
+    return true;
 }
 
-static bool maouConsumePendingScreenshot(MaouPendingScreenshot &request) {
-    if (!maouScreenshotMutex)
-        maouScreenshotMutex = SDL_CreateMutex();
-    if (maouScreenshotMutex)
-        SDL_LockMutex(maouScreenshotMutex);
+extern "C" void maou_mkxpz_cancel_pending_screenshot(void) {
+    MaouPendingScreenshot request;
+    if (maouConsumePendingScreenshot(request))
+        request.callback(0, request.path.c_str(), request.context);
+}
 
-    const bool hasRequest = maouHasPendingScreenshot;
-    if (hasRequest) {
-        request = maouPendingScreenshot;
-        maouHasPendingScreenshot = false;
+extern "C" void maou_mkxpz_request_screenshot(
+    const char *path, MaouMkxpzScreenshotCallback callback, void *context
+) {
+    if (!path || !callback) {
+        if (callback) callback(0, path, context);
+        return;
     }
-
-    if (maouScreenshotMutex)
-        SDL_UnlockMutex(maouScreenshotMutex);
-    return hasRequest;
+    MaouPendingScreenshot replaced;
+    bool hadPending;
+    {
+        std::lock_guard<std::mutex> lock(maouScreenshotMutex);
+        hadPending = maouHasPendingScreenshot;
+        if (hadPending) replaced = maouPendingScreenshot;
+        maouPendingScreenshot = {path, callback, context};
+        maouHasPendingScreenshot = true;
+    }
+    // Never leak a displaced callback, or invoke foreign code under the lock.
+    if (hadPending) replaced.callback(0, replaced.path.c_str(), replaced.context);
 }
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" bool maou_mkxpz_is_embedded_runtime();
+extern "C" bool maou_mkxpz_sync_ios_drawable(SDL_Window *, int *, int *, float *);
 extern "C" unsigned int maou_mkxpz_ios_drawable_framebuffer(SDL_Window *window);
 extern "C" void maou_mkxpz_prepare_ios_gl_present(SDL_Window *window);
 
 static void maouSwapWindow(SDL_Window *window) {
+    const uint64_t generation = maou_mkxpz_render_generation();
     maou_mkxpz_prepare_ios_gl_present(window);
     SDL_GL_SwapWindow(window);
+    maouRecordPresentation(generation);
 }
 
 static void maouBlitBeginScreen(SDL_Window *window, const Vec2i &size, int scaleIsSpecial) {
@@ -154,7 +163,9 @@ static void maouBlitBeginScreen(SDL_Window *window, const Vec2i &size, int scale
 }
 #else
 static void maouSwapWindow(SDL_Window *window) {
+    const uint64_t generation = maou_mkxpz_render_generation();
     SDL_GL_SwapWindow(window);
+    maouRecordPresentation(generation);
 }
 
 static void maouBlitBeginScreen(SDL_Window *, const Vec2i &size, int scaleIsSpecial) {
@@ -921,6 +932,7 @@ struct GraphicsPrivate {
     /* Global list of all live Disposables
      * (disposed on reset) */
     IntruList<Disposable> dispList;
+    MaouSessionResources<Disposable> sessionResources;
     
     GraphicsPrivate(RGSSThreadData *rtData)
     : scResLores(DEF_SCREEN_W, DEF_SCREEN_H),
@@ -1051,15 +1063,26 @@ struct GraphicsPrivate {
         return true;
     }
     
-    void checkResize(bool skipIntScaleBuffer = false) {
+    void checkResize(bool skipIntScaleBuffer = false, bool force = false) {
+        bool resized = force;
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+        if (maou_mkxpz_is_embedded_runtime()) {
+            // Dimensions and GL storage belong to one frame-boundary update.
+            // SDL window events may describe a detached window or an old buffer.
+            float scale = backingScaleFactor;
+            resized = maou_mkxpz_sync_ios_drawable(threadData->window,
+                                                  &winSize.x, &winSize.y, &scale) || resized;
+            if (resized) backingScaleFactor = scale;
+        } else
+#endif
         if (threadData->windowSizeMsg.poll(winSize)) {
-            /* Query the actual size in pixels, not units */
             Vec2i drawableSize(winSize);
             threadData->drawableSizeMsg.poll(drawableSize);
-            
-            backingScaleFactor = drawableSize.x / winSize.x;
+            backingScaleFactor = (float)drawableSize.x / winSize.x;
             winSize = drawableSize;
-            
+            resized = true;
+        }
+        if (resized) {
             /* Make sure integer buffers are rebuilt before screen offsets are
              * calculated so we have the final allocated buffer size ready */
             if (integerScaleActive && findHighestIntegerScale() && !skipIntScaleBuffer)
@@ -1300,6 +1323,7 @@ double Graphics::lastUpdate() {
 }
 
 void Graphics::update(bool checkForShutdown) {
+    if (maou_mkxpz_render_cancelled()) return;
     p->threadData->rqWindowAdjust.wait();
     p->last_update = shState->runTime();
     
@@ -1410,6 +1434,7 @@ void Graphics::transition(int duration, const char *filename, int vague) {
         /* We need to clean up transMap properly before
          * a possible longjmp, so we manually test for
          * shutdown/reset here */
+        if (maou_mkxpz_render_cancelled()) break;
         if (p->threadData->rqTerm) {
             glState.blend.pop();
             delete transMap;
@@ -1494,7 +1519,9 @@ double Graphics::averageFrameRate() {
 
 void Graphics::wait(int duration) {
     for (int i = 0; i < duration; ++i) {
+        if (maou_mkxpz_render_cancelled()) break;
         p->checkShutDownReset();
+        p->checkResize();
         p->redrawScreen();
     }
 }
@@ -1506,12 +1533,14 @@ void Graphics::fadeout(int duration) {
     float diff = 255.0f - curr;
     
     for (int i = duration - 1; i > -1; --i) {
+        if (maou_mkxpz_render_cancelled()) break;
         setBrightness(diff + (curr / duration) * i);
         
         if (p->frozen) {
+            p->checkResize();
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->winSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1533,12 +1562,14 @@ void Graphics::fadein(int duration) {
     float diff = 255.0f - curr;
     
     for (int i = 1; i <= duration; ++i) {
+        if (maou_mkxpz_render_cancelled()) break;
         setBrightness(curr + (diff / duration) * i);
         
         if (p->frozen) {
+            p->checkResize();
             int scaleIsSpecial = GLMeta::blitScaleIsSpecial(p->integerScaleBuffer, false, IntRect(0, 0, p->scSize.x, p->scSize.y), p->frozenScene, IntRect(0, 0, p->scRes.x, p->scRes.y));
 
-            maouBlitBeginScreen(p->threadData->window, p->scSize, scaleIsSpecial);
+            maouBlitBeginScreen(p->threadData->window, p->winSize, scaleIsSpecial);
             GLMeta::blitSource(p->frozenScene, scaleIsSpecial);
             
             FBO::clear();
@@ -1633,6 +1664,14 @@ void Graphics::resizeScreen(int width, int height) {
     
     glState.scissorBox.set(IntRect(0, 0, p->scRes.x, p->scRes.y));
     
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    if (maou_mkxpz_is_embedded_runtime()) {
+        // RGSS resolution can change without any UIKit layout. Recompute the
+        // aspect fit now rather than waiting for a detached SDL window event.
+        p->checkResize(false, true);
+        return;
+    }
+#endif
     shState->eThread().requestWindowResize(width, height);
 }
 
@@ -1886,8 +1925,36 @@ void Graphics::unlock(bool force) {
     p->releaseLock(force);
 }
 
-void Graphics::addDisposable(Disposable *d) { p->dispList.append(d->link); }
+void Graphics::addDisposable(Disposable *d) {
+    if (!p->sessionResources.add(d, maou_mkxpz_render_generation()))
+        throw Exception(Exception::RGSSError, "Render session is closing");
+    p->dispList.append(d->link);
+}
 
-void Graphics::remDisposable(Disposable *d) { p->dispList.remove(d->link); }
+void Graphics::remDisposable(Disposable *d) {
+    p->sessionResources.remove(d);
+    p->dispList.remove(d->link);
+}
+
+MaouResourceReport Graphics::sessionResources(uint64_t generation, bool release) {
+    if (!generation || maou_mkxpz_render_generation() != generation)
+        throw Exception(Exception::RGSSError, "Stale resource session");
+    auto report = release ? p->sessionResources.release(generation) : p->sessionResources.inspect(generation);
+    if (release && report.live == 0 && report.failures == 0) {
+        // Persistent render targets outlive the game's Disposable objects.
+        // Clear both live and frozen frames on the render thread, including
+        // cancellation cleanup where Graphics.update would return early.
+        p->frozen = false;
+        p->screen.getPP().clearBuffers();
+        glState.clearColor.pushSet(Vec4(0, 0, 0, 1));
+        FBO::bind(p->frozenScene.fbo); FBO::clear();
+        if (p->integerScaleBuffer.fbo.gl) { FBO::bind(p->integerScaleBuffer.fbo); FBO::clear(); }
+        FBO::unbind();
+        glState.clearColor.pop();
+    }
+    if (release) shState->texPool().purge();
+    report.pooledBytes = shState->texPool().cachedBytes();
+    return report;
+}
 
 #undef GRAPHICS_THREAD_LOCK

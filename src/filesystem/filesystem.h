@@ -24,6 +24,8 @@
 
 #include <SDL_rwops.h>
 #include <string>
+#include <vector>
+#include <cstdint>
 
 #include "filesystemImpl.h"
 
@@ -31,6 +33,12 @@ namespace mkxp_fs = filesystemImpl;
 
 struct FileSystemPrivate;
 class SharedFontState;
+
+struct MaouMountPath { std::string path, mountpoint; };
+struct MaouFilesystemReport {
+    uint64_t mounts = 0, pathEntries = 0, directories = 0, failures = 0;
+    bool closed = false;
+};
 
 class FileSystem
 {
@@ -41,6 +49,10 @@ public:
 
 	void addPath(const char *path, const char *mountpoint = 0, bool reload = false);
     void removePath(const char *path, bool reload = false);
+
+    // Trusted render-thread host only. Null paths reuses the startup manifest.
+    void beginSession(uint64_t generation, const std::vector<MaouMountPath> *paths = 0);
+    MaouFilesystemReport sessionResources(uint64_t generation, bool release);
 
 	/* Call these after the last 'addPath()' */
 	void createPathCache();

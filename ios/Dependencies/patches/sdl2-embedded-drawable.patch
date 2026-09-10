@@ -1,0 +1,102 @@
+--- a/src/video/uikit/SDL_uikitopenglview.h
++++ b/src/video/uikit/SDL_uikitopenglview.h
+@@ -53,6 +53,11 @@
+ @property (nonatomic, readonly) GLuint drawableFramebuffer;
+ @property (nonatomic, readonly) GLuint msaaResolveFramebuffer;
+
++/* Maou's embedded host owns layout. GL storage changes require a render-thread
++ * handoff; UIKit must never make a live renderer's context current on its own. */
++@property (nonatomic, weak) UIView *maouHostView;
++- (BOOL)maouSyncDrawableWidth:(int *)width height:(int *)height scale:(float *)scale;
++
+ - (void)swapBuffers;
+
+ - (void)updateFrame;
+--- a/src/video/uikit/SDL_uikitopenglview.m
++++ b/src/video/uikit/SDL_uikitopenglview.m
+@@ -26,6 +26,7 @@
+ #include <OpenGLES/ES2/glext.h>
+ #import "SDL_uikitopenglview.h"
+ #include "SDL_uikitwindow.h"
++#include "SDL_atomic.h"
+
+ @implementation SDL_uikitopenglview {
+     /* The renderbuffer and framebuffer used to render to this layer. */
+@@ -46,6 +47,8 @@
+     int samples;
+
+     BOOL retainedBacking;
++    SDL_atomic_t maouLayoutPending;
++    BOOL maouDeferredDrawable;
+ }
+
+ @synthesize context;
+@@ -313,9 +316,68 @@
+     [context presentRenderbuffer:GL_RENDERBUFFER];
+ }
+
++- (void)setFrame:(CGRect)frame
++{
++    /* SDL's detached window/controller can still receive rotation/keyboard
++     * callbacks. Their screen-sized frame must not override the embedded host. */
++    [super setFrame:self.maouHostView ? self.maouHostView.bounds : frame];
++}
++
++- (void)setMaouHostView:(UIView *)host
++{
++    _maouHostView = host;
++    if (host) maouDeferredDrawable = YES;
++    SDL_AtomicSet(&maouLayoutPending, 1);
++    [self setNeedsLayout];
++}
++
++- (BOOL)maouSyncDrawableWidth:(int *)width height:(int *)height scale:(float *)scale
++{
++    if (!SDL_AtomicSet(&maouLayoutPending, 0)) {
++        return NO;
++    }
++    /* Called at a frame boundary by the sole render thread. Drain GPU work
++     * before storage destruction, then temporarily lend the context to UIKit.
++     * No main-thread wait holds a lock needed by UIKit or by session shutdown. */
++    SDL_assert(![NSThread isMainThread]);
++    EAGLContext *renderContext = [EAGLContext currentContext];
++    SDL_assert(renderContext == context);
++    glFinish();
++    [EAGLContext setCurrentContext:nil];
++    __block BOOL valid = NO;
++    dispatch_sync(dispatch_get_main_queue(), ^{
++        [self.superview layoutIfNeeded];
++        [self layoutIfNeeded];
++        int w = (int)(self.bounds.size.width * self.contentScaleFactor);
++        int h = (int)(self.bounds.size.height * self.contentScaleFactor);
++        if (w <= 0 || h <= 0) {
++            SDL_AtomicSet(&maouLayoutPending, 1);
++            return;
++        }
++        EAGLContext *previous = [EAGLContext currentContext];
++        [EAGLContext setCurrentContext:self->context];
++        if (w != self->backingWidth || h != self->backingHeight) {
++            [self updateFrame];
++        }
++        glFlush();
++        [EAGLContext setCurrentContext:previous == self->context ? nil : previous];
++        *width = self->backingWidth;
++        *height = self->backingHeight;
++        *scale = self.contentScaleFactor;
++        valid = YES;
++    });
++    [EAGLContext setCurrentContext:renderContext];
++    return valid;
++}
++
+ - (void)layoutSubviews
+ {
+     [super layoutSubviews];
++
++    if (maouDeferredDrawable) {
++        SDL_AtomicSet(&maouLayoutPending, 1);
++        return;
++    }
+
+     int width  = (int) (self.bounds.size.width * self.contentScaleFactor);
+     int height = (int) (self.bounds.size.height * self.contentScaleFactor);

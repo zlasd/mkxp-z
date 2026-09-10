@@ -1265,6 +1265,26 @@ void Input::update()
     p->last_update = shState->runTime();
 }
 
+void Input::resetSession()
+{
+    shState->eThread().resetSessionInput(); // Drain earlier SDL input before clearing RGSS history.
+    if (SharedState::rgssSessionSwitching) {
+        // Defaults differ: XP Z is A and C is confirm; VX/Ace Z is confirm.
+        // This trusted service disables native settings; the host owns mappings.
+        Config config = shState->rtData().config;
+        config.rgssVersion = rgssVer;
+        p->applyBindingDesc(genDefaultBindings(config));
+    }
+    p->clearBuffer(); p->swapBuffers(); p->clearBuffer();
+    memset(p->axisStateArray, 0, sizeof(p->axisStateArray));
+    memset(p->mousePos, 0, sizeof(p->mousePos)); p->mouseInWindow = false;
+    p->repeating = None; p->rawRepeating = p->buttonRepeating = -1;
+    p->repeatCount = p->rawRepeatCount = p->buttonRepeatCount = 0;
+    p->repeatTime = p->rawRepeatTime = p->buttonRepeatTime = p->last_update = 0;
+    p->dir4Data.active = p->dir8Data.active = 0; p->dir4Data.previous = None;
+    p->vScrollDistance = 0;
+}
+
 std::vector<std::string> Input::getBindings(ButtonCode code) {
     std::vector<std::string> ret;
     for (const auto &b : p->kbBindings) {

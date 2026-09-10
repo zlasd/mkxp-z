@@ -28,6 +28,7 @@
 #include "util.h"
 #include "config.h"
 #include "encoding.h"
+#include "maou_mkxpz.h"
 
 #include "debugwriter.h"
 
@@ -132,6 +133,8 @@ struct FontSet
 
 struct SharedFontStatePrivate
 {
+	uint64_t generation = 0, epoch = 1;
+	bool closed = false;
 	/* Maps: font family name, To: substituted family name,
 	 * as specified via configuration file / arguments */
 	BoostHash<std::string, std::string> subs;
@@ -143,8 +146,7 @@ struct SharedFontStatePrivate
 	/* Pool of font size to ppem values */
 	BoostHash<FontSizeKey, int> size_to_ppem;
 
-	/* Pool of already opened fonts; once opened, they are reused
-	 * and never closed until the termination of the program */
+	/* Shared within a session. FontPrivate borrows pointers using epoch. */
 	BoostHash<FontPPEMKey, std::array<TTF_Font*, 2>> ppem_to_font;
     
     /* Internal default font family that is used anytime an
@@ -154,6 +156,13 @@ struct SharedFontStatePrivate
 	float fontScale;
 	bool fontKerning;
 	int fontHinting;
+
+	void clearCache() {
+		++epoch; // Invalidate every borrowed pointer before closing any face.
+		for (auto iter = ppem_to_font.cbegin(); iter != ppem_to_font.cend(); ++iter)
+			for (auto font : iter->second) if (font) TTF_CloseFont(font);
+		ppem_to_font.clear(); size_to_ppem.clear();
+	}
 };
 
 static void registerFontSetFile(FontSet &set,
@@ -228,15 +237,53 @@ SharedFontState::SharedFontState(const Config &conf)
 
 SharedFontState::~SharedFontState()
 {
-	BoostHash<FontPPEMKey, std::array<TTF_Font*, 2>>::const_iterator iter;
-	for (iter = p->ppem_to_font.cbegin(); iter != p->ppem_to_font.cend(); ++iter)
-	{
-		for (int i=0; i < iter->second.size(); i++)
-			if (iter->second[i] != 0)
-				TTF_CloseFont(iter->second[i]);
-	}
-
+	p->clearCache();
 	delete p;
+}
+
+uint64_t SharedFontState::cacheEpoch() const
+{
+	if (p->closed) throw Exception(Exception::RGSSError, "Font session is closed");
+	return p->epoch;
+}
+
+void SharedFontState::beginSession(uint64_t generation, const std::vector<std::string> *substitutions)
+{
+	if (!generation || generation != maou_mkxpz_render_generation()
+	    || generation <= p->generation || (p->generation && !p->closed))
+		throw Exception(Exception::RGSSError, "Stale or overlapping font session");
+	p->closed = true; p->generation = generation;
+	p->clearCache(); p->sets.clear();
+	if (substitutions) {
+		p->subs.clear();
+		for (auto raw : *substitutions) {
+			// Match Config::read: font lookup keys and both substitution sides
+			// use lowercase, including descriptors supplied after startup.
+			std::transform(raw.begin(), raw.end(), raw.begin(),
+			    [](unsigned char c) { return std::tolower(c); });
+			const auto sep = raw.find('>');
+			if (sep != std::string::npos) p->subs.insert(raw.substr(0, sep), raw.substr(sep + 1));
+		}
+	}
+	shState->fileSystem().initFontSets(*this);
+	p->closed = false;
+}
+
+MaouFontReport SharedFontState::sessionResources(uint64_t generation, bool release)
+{
+	if (!generation || generation != maou_mkxpz_render_generation() || generation != p->generation)
+		throw Exception(Exception::RGSSError, "Stale font resource session");
+	if (release && !p->closed) {
+		p->closed = true;
+		p->clearCache(); p->sets.clear();
+	}
+	MaouFontReport report;
+	report.closed = p->closed; report.cacheEpoch = p->epoch;
+	for (auto iter = p->ppem_to_font.cbegin(); iter != p->ppem_to_font.cend(); ++iter)
+		for (auto font : iter->second) report.openFonts += font ? 1 : 0;
+	report.sizeEntries = std::distance(p->size_to_ppem.cbegin(), p->size_to_ppem.cend());
+	report.families = std::distance(p->sets.cbegin(), p->sets.cend());
+	return report;
 }
 
 static std::string decodeSfntName(const FT_SfntName &aname)
@@ -582,6 +629,7 @@ static int calc_ppem_for_height(Font_Container *font, int height)
 _TTF_Font *SharedFontState::getFont(std::string family,
                                     int size, float hiresMult, int outline_size)
 {
+	cacheEpoch(); // Also guard direct fallback lookups while the session is closed.
 	std::transform(family.begin(), family.end(), family.begin(),
 		[](unsigned char c){ return std::tolower(c); });
 
@@ -720,6 +768,7 @@ _TTF_Font *SharedFontState::getFont(std::string family,
 
 bool SharedFontState::fontPresent(std::string family) const
 {
+	if (p->closed) return false;
 	std::transform(family.begin(), family.end(), family.begin(),
 		[](unsigned char c){ return std::tolower(c); });
 
@@ -813,6 +862,7 @@ struct FontPrivate
 	 * set to null */
 	TTF_Font *sdlFont;
 	TTF_Font *sdlFontOutline;
+	uint64_t cacheEpoch = 0;
     
     bool isSolid;
 
@@ -844,23 +894,15 @@ struct FontPrivate
 	      outColor(&outColorTmp),
 	      colorTmp(*other.color),
 	      outColorTmp(*other.outColor),
-	      sdlFont(other.sdlFont),
-	      sdlFontOutline(other.sdlFontOutline),
+	      sdlFont(0),
+	      sdlFontOutline(0),
           isSolid(false)
 	{}
 
 	void operator=(const FontPrivate &o)
 	{
-		if (size != o.size || name != o.name)
-		{
-			sdlFont = 0;
-			sdlFontOutline = 0;
-		}
-		if (hiresMult == o.hiresMult)
-		{
-			sdlFont = sdlFont == 0 ? o.sdlFont : sdlFont;
-			sdlFontOutline = sdlFontOutline == 0 ? o.sdlFontOutline : sdlFontOutline;
-		}
+		// Never import borrowed pointers from a possibly older cache epoch.
+		sdlFont = 0; sdlFontOutline = 0; cacheEpoch = 0;
 
 		 name     =  o.name;
 		 size     =  o.size;
@@ -1015,12 +1057,14 @@ void Font::initDefaultDynAttribs()
 void Font::initDefaults(const SharedFontState &sfs)
 {
 	std::vector<std::string> &names = FontPrivate::initialDefaultNames;
+	names.clear();
 
 	switch (rgssVer)
 	{
 	case 1 :
 		// FIXME: Japanese version has "MS PGothic" instead
 		names.push_back("Arial");
+		FontPrivate::defaultSize = 22;
 		break;
 
 	case 2 :
@@ -1044,6 +1088,11 @@ void Font::initDefaults(const SharedFontState &sfs)
 
 _TTF_Font *Font::getSdlFont(int outline_size)
 {
+	SharedFontState &state = shState->fontState();
+	const uint64_t epoch = state.cacheEpoch();
+	if (p->cacheEpoch != epoch) {
+		p->sdlFont = 0; p->sdlFontOutline = 0; p->cacheEpoch = epoch;
+	}
 	_TTF_Font **font;
 	if (outline_size == 0)
 		font = &p->sdlFont;

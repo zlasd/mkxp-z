@@ -51,6 +51,14 @@
 #include "sharedstate.h"
 #include "eventthread.h"
 #include "maou_mkxpz.h"
+#include "maou_render_session.h"
+static MaouRenderSession maouRenderSession;
+extern "C" int maou_mkxpz_begin_render_session(uint64_t id) { return maouRenderSession.begin(id); }
+extern "C" int maou_mkxpz_cancel_render_session(uint64_t id) { return maouRenderSession.cancel(id); }
+extern "C" int maou_mkxpz_end_render_session(uint64_t id) { return maouRenderSession.finish(id); }
+extern "C" int maou_mkxpz_render_session_state(uint64_t id) { return maouRenderSession.state(id); }
+extern "C" int maou_mkxpz_render_cancelled(void) { return maouRenderSession.cancelled(); }
+extern "C" uint64_t maou_mkxpz_render_generation(void) { return maouRenderSession.generation(); }
 #include "util/debugwriter.h"
 #include "util/exception.h"
 #include "display/gl/gl-debug.h"
@@ -175,6 +183,8 @@ struct MaouInitGLTask {
 static void maouInitGLTaskRun(void *context) {
   MaouInitGLTask *task = static_cast<MaouInitGLTask *>(context);
   task->result = initGL(task->window, *task->config, task->threadData);
+  // The RGSS thread takes ownership after initialization completes.
+  if (task->result) SDL_GL_MakeCurrent(task->window, nullptr);
 }
 
 struct MaouEmbedWindowTask {
@@ -408,6 +418,12 @@ void maou_mkxpz_resize(int width, int height)
     if (!maouActiveWindow || width <= 0 || height <= 0)
         return;
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // UIKit owns the embedded view bounds. Resizing SDL's detached window can
+    // overwrite them with screen coordinates; drawable updates are deferred
+    // by layoutSubviews and consumed by Graphics::checkResize.
+    if (maouEmbeddedRuntime) return;
+#endif
     SDL_SetWindowSize(maouActiveWindow, width, height);
 
     SDL_Event event;

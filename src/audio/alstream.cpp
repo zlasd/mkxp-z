@@ -187,6 +187,23 @@ double ALStream::queryOffset()
 void ALStream::closeSource()
 {
 	delete source;
+	source = 0;
+}
+
+void ALStream::releaseSession()
+{
+	close(); // Joins the decoder thread and closes its SDL/PhysFS source.
+	AL::Source::clearQueue(alSrc);
+	// Keep the fixed host buffer slots, but discard the previous game's PCM.
+	for (int i = 0; i < STREAM_BUFS; ++i) {
+		alGetError();
+		AL::Buffer::del(alBuf[i]);
+		if (alGetError() != AL_NO_ERROR)
+			throw Exception(Exception::MKXPError, "Cannot release audio stream buffer");
+		alBuf[i] = AL::Buffer::gen();
+		if (alGetError() != AL_NO_ERROR)
+			throw Exception(Exception::MKXPError, "Cannot recreate empty audio buffer");
+	}
 }
 
 struct ALStreamOpenHandler : FileSystem::OpenHandler
@@ -406,7 +423,8 @@ void ALStream::streamData()
 	 * refill and queue them up again */
 	while (true)
 	{
-		shState->rtData().syncPoint.passSecondarySync();
+		shState->rtData().syncPoint.passSecondarySync(&threadTermReq);
+		if (threadTermReq) return;
 
 		ALint procBufs = AL::Source::getProcBufferCount(alSrc);
 

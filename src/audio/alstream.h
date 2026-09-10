@@ -91,6 +91,7 @@ struct ALStream
 	~ALStream();
 
 	void close();
+	void releaseSession();
 	void open(const std::string &filename);
 	void stop();
 	void play(double offset = 0);

@@ -25,6 +25,11 @@ static void *so;
 
 void initFluidFunctions()
 {
+    // The library is process-owned; per-game synth/settings teardown must not
+    // repeatedly dlopen it (or retry a missing library on iOS).
+    static bool attempted = false;
+    if (attempted) return;
+    attempted = true;
 #ifdef SHARED_FLUID
 
 #define FLUID_FUN(name, type) \

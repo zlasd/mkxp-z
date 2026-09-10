@@ -26,6 +26,11 @@ esac
 
 if [ "$SKIP_DEPS" != "--skip-deps" ]; then
     "$SCRIPT_DIR/Dependencies/build-all.sh" "$PLATFORM"
+else
+    # The embedding bridge requires our SDL drawable methods. Even when reusing
+    # other dependencies, refresh this incremental target so old caches cannot
+    # produce an app with unrecognized selectors at its first rendered frame.
+    "$SCRIPT_DIR/Dependencies/build-sdl2.sh" "$PLATFORM"
 fi
 
 DEPS_DIR="$SCRIPT_DIR/Dependencies/build/$PLATFORM"
@@ -177,6 +182,21 @@ objcxx_sources=(
 
 objects=()
 
+# The embedded runtime shares layouts across translation units. Source-only
+# timestamps can silently link incompatible objects after a header change.
+compile_signature="$(python3 - "$REPO_DIR" "$CXX" "${common_args[@]}" <<'PY'
+import hashlib, pathlib, sys
+root=pathlib.Path(sys.argv[1]); h=hashlib.sha256()
+h.update(repr(sys.argv[2:]).encode())
+files=[root/'ios/build-runtime.sh']
+for folder in ('src','binding'):
+    files += [p for p in (root/folder).rglob('*') if p.suffix in ('.h','.hpp','.xxd')]
+for p in sorted(files):h.update(str(p.relative_to(root)).encode());h.update(p.read_bytes())
+print(h.hexdigest())
+PY
+)"
+previous_signature="$(cat "$OBJ_DIR/compile-signature" 2>/dev/null || true)"
+
 compile_source() {
     local compiler="$1"
     local source="$2"
@@ -186,7 +206,7 @@ compile_source() {
     local object="$OBJ_DIR/${source//\//_}.o"
     objects+=("$object")
 
-    if [ -f "$object" ] && [ "$object" -nt "$input" ]; then
+    if [ "$compile_signature" = "$previous_signature" ] && [ -f "$object" ] && [ "$object" -nt "$input" ]; then
         return
     fi
 
@@ -208,6 +228,7 @@ done
 
 echo "==> Archiving $LIBRARY"
 "$LIBTOOL" -static -o "$LIBRARY" "${objects[@]}"
+printf '%s\n' "$compile_signature" > "$OBJ_DIR/compile-signature"
 
 SYMBOLS_FILE="$BUILD_DIR/libMaouMkxpZ.symbols"
 nm -gU "$LIBRARY" > "$SYMBOLS_FILE"

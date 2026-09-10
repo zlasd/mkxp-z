@@ -40,6 +40,7 @@
 #include "sharedstate.h"
 #include "graphics.h"
 #include "debugwriter.h"
+#include "exception.h"
 
 extern "C" bool maou_mkxpz_is_embedded_runtime();
 
@@ -110,6 +111,7 @@ enum
     REQUEST_SETCURSORVISIBLE,
     
     REQUEST_TEXTMODE,
+    REQUEST_SESSION_INPUT_RESET,
     
     REQUEST_SETTINGS,
     
@@ -507,6 +509,13 @@ void EventThread::process(RGSSThreadData &rtData)
                 /* Handle user events */
                 switch(event.type - usrIdStart)
                 {
+                    case REQUEST_SESSION_INPUT_RESET:
+                        resetInputStates();
+                        SDL_AtomicSet(&verticalScrollDistance, 0);
+                        SDL_StopTextInput();
+                        lockText(true); textInputBuffer.clear(); lockText(false);
+                        SDL_AtomicSet(&inputResetAck, event.user.code);
+                        break;
                     case REQUEST_SETFULLSCREEN :
                         setFullscreen(win, static_cast<bool>(event.user.code));
                         break;
@@ -713,6 +722,22 @@ void EventThread::resetInputStates()
     memset(&controllerState, 0, sizeof(controllerState));
     memset(&mouseState.buttons, 0, sizeof(mouseState.buttons));
     memset(&touchState, 0, sizeof(touchState));
+}
+
+void EventThread::resetSessionInput()
+{
+    const int serial = SDL_AtomicAdd(&inputResetSerial, 1) + 1;
+    SDL_Event event{};
+    event.type = usrIdStart + REQUEST_SESSION_INPUT_RESET;
+    event.user.code = serial;
+    if (SDL_PushEvent(&event) <= 0)
+        throw Exception(Exception::SDLError, "Cannot queue session input reset");
+    const Uint32 started = SDL_GetTicks();
+    while (SDL_AtomicGet(&inputResetAck) != serial) {
+        if (SDL_GetTicks() - started > 2000)
+            throw Exception(Exception::RGSSError, "Session input reset timed out");
+        SDL_Delay(1);
+    }
 }
 
 void EventThread::setFullscreen(SDL_Window *win, bool mode)
@@ -938,12 +963,12 @@ void SyncPoint::waitMainSync()
     mainSync.waitForUnlock();
 }
 
-void SyncPoint::passSecondarySync()
+void SyncPoint::passSecondarySync(const AtomicFlag *cancel)
 {
     if (!secondSync.locked)
         return;
     
-    secondSync.waitForUnlock();
+    secondSync.waitForUnlock(cancel);
 }
 
 SyncPoint::Util::Util()
@@ -973,12 +998,16 @@ void SyncPoint::Util::unlock(bool multi)
         SDL_CondSignal(cond);
 }
 
-void SyncPoint::Util::waitForUnlock()
+void SyncPoint::Util::waitForUnlock(const AtomicFlag *cancel)
 {
     SDL_LockMutex(mut);
     
-    while (locked)
-        SDL_CondWait(cond, mut);
+    while (locked && !(cancel && *cancel)) {
+        // Session teardown must be able to join audio workers while the app
+        // remains suspended; it must not resume other suspended workers.
+        if (cancel) SDL_CondWaitTimeout(cond, mut, 10);
+        else SDL_CondWait(cond, mut);
+    }
     
     SDL_UnlockMutex(mut);
 }

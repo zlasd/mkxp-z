@@ -25,6 +25,7 @@
 #include "config.h"
 #include "debugwriter.h"
 #include "fluid-fun.h"
+#include "exception.h"
 
 #include <assert.h>
 #include <vector>
@@ -44,7 +45,7 @@ struct SharedMidiState
 	bool inited;
 	std::vector<Synth> synths;
 	const std::string &soundFont;
-	fluid_settings_t *flSettings;
+	fluid_settings_t *flSettings = 0;
 
 	SharedMidiState(const Config &conf)
 	    : inited(false),
@@ -64,7 +65,17 @@ struct SharedMidiState
 			fluid.delete_synth(synths[i].synth);
 		}
 
-		fluid.delete_settings(flSettings);
+		if (flSettings) fluid.delete_settings(flSettings);
+	}
+
+	void releaseSession()
+	{
+		for (const auto &synth : synths)
+			if (synth.inUse) throw Exception(Exception::RGSSError, "MIDI synthesizer still in use");
+		for (const auto &synth : synths) fluid.delete_synth(synth.synth);
+		synths.clear();
+		if (flSettings) fluid.delete_settings(flSettings);
+		flSettings = 0; inited = false;
 	}
 
 	void initIfNeeded(const Config &conf)
@@ -80,6 +91,7 @@ struct SharedMidiState
 			return;
 
 		flSettings = fluid.new_settings();
+		if (!flSettings) throw Exception(Exception::RGSSError, "Cannot allocate MIDI settings");
 		fluid.settings_setnum(flSettings, "synth.gain", 1.0f);
 		fluid.settings_setnum(flSettings, "synth.sample-rate", SYNTH_SAMPLERATE);
 		fluid.settings_setint(flSettings, "synth.chorus.active", conf.midi.chorus);
@@ -131,6 +143,7 @@ private:
 	fluid_synth_t *addSynth(bool usedNow)
 	{
 		fluid_synth_t *syn = fluid.new_synth(flSettings);
+		if (!syn) throw Exception(Exception::RGSSError, "Cannot allocate MIDI synthesizer");
 
 		if (!soundFont.empty())
 			fluid.synth_sfload(syn, soundFont.c_str(), 1);

@@ -86,6 +86,12 @@ TexPool::TexPool(uint32_t maxMemSize)
 
 TexPool::~TexPool()
 {
+    purge();
+    delete p;
+}
+
+void TexPool::purge()
+{
 	std::list<TEXFBO>::iterator iter;
 
 	for (iter = p->priorityQueue.begin();
@@ -99,8 +105,12 @@ TexPool::~TexPool()
 
 	assert(p->objCount == 0);
 
-	delete p;
+    p->priorityQueue.clear();
+    p->poolHash.clear();
+    p->memSize = 0;
 }
+
+uint32_t TexPool::cachedBytes() const { return p->memSize; }
 
 TEXFBO TexPool::request(int width, int height)
 {
@@ -212,5 +222,4 @@ void TexPool::disable()
 {
 	p->disabled = true;
 }
-
 

@@ -27,6 +27,12 @@
 
 #include <vector>
 #include <string>
+#include <cstdint>
+
+struct MaouFontReport {
+	uint64_t openFonts = 0, sizeEntries = 0, families = 0, cacheEpoch = 0;
+	bool closed = false;
+};
 
 struct SDL_RWops;
 struct _TTF_Font;
@@ -54,6 +60,9 @@ public:
 
 	static _TTF_Font *openBundled(int size);
     void setDefaultFontFamily(const std::string &family);
+	void beginSession(uint64_t generation, const std::vector<std::string> *substitutions = 0);
+	MaouFontReport sessionResources(uint64_t generation, bool release);
+	uint64_t cacheEpoch() const;
 
 private:
 	SharedFontStatePrivate *p;

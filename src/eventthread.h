@@ -98,6 +98,7 @@ public:
 	void requestShowCursor(bool mode);
     
     void requestTextInputMode(bool mode);
+    void resetSessionInput();
     
     void requestSettingsMenu();
 
@@ -118,6 +119,7 @@ public:
 	void notifyGameScreenChange(const SDL_Rect &screen);
 
 private:
+    SDL_atomic_t inputResetSerial{}, inputResetAck{};
 	static int eventFilter(void *, SDL_Event*);
 
 	void resetInputStates();
@@ -209,7 +211,7 @@ struct SyncPoint
 	void waitMainSync();
 
 	/* Used by secondary (audio) threads */
-	void passSecondarySync();
+	void passSecondarySync(const AtomicFlag *cancel = 0);
 
 private:
 	struct Util
@@ -219,7 +221,7 @@ private:
 
 		void lock();
 		void unlock(bool multi);
-		void waitForUnlock();
+		void waitForUnlock(const AtomicFlag *cancel = 0);
 
 		AtomicFlag locked;
 		SDL_mutex *mut;
