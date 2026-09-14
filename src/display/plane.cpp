@@ -188,6 +188,9 @@ void Plane::setBitmap(Bitmap *value)
 	guardDisposed();
 
 	p->bitmap = value;
+	/* Manual tiling uses the bitmap dimensions for both positions and UVs.
+	 * Rebuild it even when a replacement keeps the same offset and zoom. */
+	p->quadSourceDirty = true;
 
 	p->bitmapDispCon.disconnect();
 
