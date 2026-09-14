@@ -68,10 +68,20 @@ cd "$BUILD_DIR"
 mkdir -p enc enc/trans
 make -j"$NPROC" miniruby
 make -j"$NPROC" libruby-static.a
+make -j"$NPROC" libencs enc/encinit.o
 
 RUBY_INCLUDE_DIR="$PREFIX/include/ruby-3.1.0"
 mkdir -p "$PREFIX/lib" "$RUBY_INCLUDE_DIR"
-cp libruby-static.a "$PREFIX/lib/"
+# The core archive contains dmyenc.o, which tries to load encoding shared
+# libraries that are unavailable in the embedded iOS app. Replace it with
+# Ruby's generated static registration and the actual encoding/transcoder
+# archives, preserving Ruby's conversion and error semantics.
+cp libruby-static.a libruby-embedded-core.a
+"$AR" -d libruby-embedded-core.a dmyenc.o
+"$(xcrun --sdk "$SDK" --find libtool)" -static \
+    -o "$PREFIX/lib/libruby-static.a.tmp" \
+    libruby-embedded-core.a enc/encinit.o enc/libenc.a enc/libtrans.a
+mv "$PREFIX/lib/libruby-static.a.tmp" "$PREFIX/lib/libruby-static.a"
 cp -R "$RUBY_SOURCE/include/"* "$RUBY_INCLUDE_DIR/"
 cp -R ".ext/include/$RUBY_ARCH_DIR/"* "$RUBY_INCLUDE_DIR/"
 

@@ -45,6 +45,15 @@ if [ ! -f "$DEPS_DIR/lib/libruby-static.a" ]; then
     exit 1
 fi
 
+# Old --skip-deps caches contain Ruby's dynamic encoding loader without any
+# loadable enc/*.so. Refresh Ruby when the static conversion tables are absent.
+RUBY_SYMBOLS_FILE="$DEPS_DIR/ruby-encoding-symbols"
+nm -gU "$DEPS_DIR/lib/libruby-static.a" > "$RUBY_SYMBOLS_FILE"
+if ! grep -q ' T _Init_trans_japanese$' "$RUBY_SYMBOLS_FILE" || \
+   ! grep -q ' T _Init_trans_utf_16_32$' "$RUBY_SYMBOLS_FILE"; then
+    "$SCRIPT_DIR/Dependencies/build-ruby.sh" "$PLATFORM"
+fi
+
 SDKROOT="$(xcrun --sdk "$SDK" --show-sdk-path)"
 CC="$(xcrun --sdk "$SDK" --find clang)"
 CXX="$(xcrun --sdk "$SDK" --find clang++)"
