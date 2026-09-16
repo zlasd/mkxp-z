@@ -56,8 +56,21 @@ run_cmake_dep() {
     shift 2
 
     local build_dir="$BUILD_ROOT/$name-$PLATFORM"
+    local toolchain_stamp="$build_dir/.maou-toolchain"
+    local toolchain
+    toolchain="$(xcrun --sdk "$SDK" --show-sdk-path)
+$(xcrun --sdk "$SDK" clang --version)"
+    local fresh_args=()
+    if [ -f "$build_dir/CMakeCache.txt" ] && \
+       { [ ! -f "$toolchain_stamp" ] || [ "$(cat "$toolchain_stamp")" != "$toolchain" ]; }; then
+        # Find-package caches embed absolute SDK paths (for example ZLIB).
+        # Reconfigure only this dependency after an Xcode/SDK upgrade; retain
+        # source downloads, installed dependencies and incremental object files.
+        fresh_args=(--fresh)
+    fi
 
     cmake \
+        ${fresh_args[@]+"${fresh_args[@]}"} \
         -U CMAKE_APPLE_ARCH_SYSROOTS \
         -U CMAKE_OSX_ARCHITECTURES \
         -S "$source" \
@@ -81,6 +94,7 @@ run_cmake_dep() {
         "$@"
 
     cmake --build "$build_dir" --target install -j"$NPROC"
+    printf '%s\n' "$toolchain" > "$toolchain_stamp"
     echo "==> Built $name for $PLATFORM at $PREFIX"
 }
 
