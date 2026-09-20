@@ -1171,7 +1171,24 @@ static void runRMXPScripts(BacktraceData &btData) {
     }
 }
 
+// A failure while evaluating a plugin (before rgss_main) must reach the host's
+// bounded diagnostics too. Protect the reporter and restore the original error:
+// a missing/full diagnostics directory must not replace the game's exception.
+static VALUE reportHostException(VALUE exc) {
+    ID name = rb_intern("MaouRuntimeDiagnostics");
+    if (rb_const_defined(rb_cObject, name)) {
+        VALUE diagnostics = rb_const_get(rb_cObject, name);
+        ID report = rb_intern("record_rgss_error");
+        if (rb_respond_to(diagnostics, report))
+            rb_funcall(diagnostics, report, 1, exc);
+    }
+    return Qnil;
+}
+
 static void showExc(VALUE exc, const BacktraceData &btData) {
+    int reportingState = 0;
+    rb_protect(reportHostException, exc, &reportingState);
+    rb_set_errinfo(exc);
     VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
     VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
     VALUE bt0 = rb_ary_entry(bt, 0);

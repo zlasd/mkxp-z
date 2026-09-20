@@ -785,9 +785,11 @@ class Win32API
 		func = kappatalize(func)
 
 		if !System.is_windows? or !NATIVE_ON_WINDOWS
-			if Win32API_Impl.const_defined?(dll)
+			# A DLL can be a relative/absolute path, not a Ruby constant. Keep
+			# unsupported path-based libraries on the normal native/failure path.
+			if /\A[A-Z][A-Za-z0-9_]*\z/.match(dll) && Win32API_Impl.const_defined?(dll)
 				dll_impl = Win32API_Impl.const_get(dll)
-				if dll_impl.const_defined?(func)
+				if /\A[A-Z][A-Za-z0-9_]*\z/.match(func) && dll_impl.const_defined?(func)
 					@mkxp_wrap_impl = dll_impl.const_get(func).new
 					return
 				end
