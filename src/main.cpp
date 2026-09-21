@@ -444,9 +444,14 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     const char *workingDirectory = options ? options->workingDirectory : 0;
     const char *resourceDirectory = options ? options->resourceDirectory : 0;
     void *nativeView = options ? options->nativeView : 0;
-    const bool controllerSupportEnabled = options
+    const bool controllerSupportRequested = options
       ? options->controllerSupportEnabled != 0
       : true;
+#if defined(MAOU_CONTROLLER_SUPPORT) && MAOU_CONTROLLER_SUPPORT == 0
+    const bool controllerSupportEnabled = false;
+#else
+    const bool controllerSupportEnabled = controllerSupportRequested;
+#endif
     maouEmbeddedRuntime = nativeView != 0;
     Debug() << "maou_mkxpz_run start argc=" << argc
             << "workingDirectory=" << (workingDirectory ? workingDirectory : "(null)")
@@ -455,6 +460,10 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
             << "controllerSupport=" << (controllerSupportEnabled ? "yes" : "no")
             << "viewWidth=" << (options ? options->viewWidth : 0)
             << "viewHeight=" << (options ? options->viewHeight : 0);
+#if defined(MAOU_CONTROLLER_SUPPORT) && MAOU_CONTROLLER_SUPPORT == 0
+    if (controllerSupportRequested)
+      Debug() << "Controller support was requested, but this runtime was built without it; continuing without controllers";
+#endif
 
     if (maouEmbeddedRuntime)
       SDL_SetMainReady();
