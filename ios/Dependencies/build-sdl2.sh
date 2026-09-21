@@ -38,6 +38,28 @@ if [ ! -f "$PATCH_STAMP" ] || [ "$(cat "$PATCH_STAMP")" != "$PATCH_HASH" ]; then
 fi
 SDL_SOURCE="$PATCHED_SOURCE"
 
+# CMake's install target rewrites libSDL2.a even when no object changed. That
+# new timestamp makes the application relink on every Xcode invocation, so
+# bypass the dependency build when the exact source/toolchain configuration is
+# already installed. One active stamp is shared by both controller modes to
+# prevent switching modes from reusing the other mode's library.
+SDL_CACHE_STAMP="$PREFIX/.maou-sdl2-active.sha256"
+SDL_CACHE_KEY="$({
+    printf '%s\n' "$PLATFORM" "$DEPLOYMENT_TARGET" "$CONTROLLER_SUPPORT" \
+        "$SDL_C_FLAGS" "$PATCH_HASH"
+    git -C "$REPO_DIR" rev-parse HEAD
+    xcrun --sdk "$SDK" --show-sdk-path
+    xcrun --sdk "$SDK" clang --version
+    shasum -a 256 "$0" "$SCRIPT_DIR/common.sh" "${PATCH_FILES[@]}"
+} | shasum -a 256 | awk '{print $1}')"
+if [ -f "$PREFIX/lib/libSDL2.a" ] \
+    && [ -f "$PREFIX/include/SDL2/SDL.h" ] \
+    && [ -f "$SDL_CACHE_STAMP" ] \
+    && [ "$(cat "$SDL_CACHE_STAMP")" = "$SDL_CACHE_KEY" ]; then
+    echo "==> Reusing unchanged SDL2 for $PLATFORM at $PREFIX"
+    exit 0
+fi
+
 run_cmake_dep "$SDL_BUILD_NAME" "$SDL_SOURCE" \
     -DCMAKE_C_FLAGS="$SDL_C_FLAGS" \
     -DSDL_STATIC=ON \
@@ -48,3 +70,4 @@ run_cmake_dep "$SDL_BUILD_NAME" "$SDL_SOURCE" \
     -DSDL_HIDAPI="$CONTROLLER_SUPPORT" \
     -DSDL_HIDAPI_JOYSTICK="$CONTROLLER_SUPPORT" \
     -DSDL_VIRTUAL_JOYSTICK="$CONTROLLER_SUPPORT"
+printf '%s\n' "$SDL_CACHE_KEY" > "$SDL_CACHE_STAMP"

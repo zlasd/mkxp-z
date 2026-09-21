@@ -24,16 +24,41 @@ case "$PLATFORM" in
         ;;
 esac
 
-if [ "$SKIP_DEPS" != "--skip-deps" ]; then
-    "$SCRIPT_DIR/Dependencies/build-all.sh" "$PLATFORM"
-else
-    # The embedding bridge requires our SDL drawable methods. Even when reusing
-    # other dependencies, refresh this incremental target so old caches cannot
-    # produce an app with unrecognized selectors at its first rendered frame.
+DEPS_DIR="$SCRIPT_DIR/Dependencies/build/$PLATFORM"
+DEPENDENCY_STAMP="$DEPS_DIR/.maou-dependency-set.sha256"
+DEPENDENCY_SIGNATURE="$({
+    printf '%s\n' "$PLATFORM" "$DEPLOYMENT_TARGET"
+    xcrun --sdk "$SDK" --show-sdk-path
+    xcrun --sdk "$SDK" clang --version
+    find "$SCRIPT_DIR/Dependencies" -maxdepth 2 -type f \
+        \( -name '*.sh' -o -name '*.patch' \) \
+        -exec shasum -a 256 {} + | LC_ALL=C sort
+} | shasum -a 256 | awk '{print $1}')"
+REQUIRED_DEPENDENCIES=(
+    libSDL2.a libSDL2_image.a libSDL2_sound.a libSDL2_ttf.a libfreetype.a
+    libogg.a libopenal.a libphysfs.a libpixman-1.a libpng16.a
+    libruby-static.a libtheora.a libtheoradec.a libtheoraenc.a libuchardet.a
+    libvorbis.a libvorbisenc.a libvorbisfile.a
+)
+DEPENDENCIES_COMPLETE=1
+for dependency in "${REQUIRED_DEPENDENCIES[@]}"; do
+    if [ ! -f "$DEPS_DIR/lib/$dependency" ]; then
+        DEPENDENCIES_COMPLETE=0
+        break
+    fi
+done
+
+if [ "$SKIP_DEPS" = "--skip-deps" ] || \
+   { [ "$DEPENDENCIES_COMPLETE" -eq 1 ] && [ -f "$DEPENDENCY_STAMP" ] \
+     && [ "$(cat "$DEPENDENCY_STAMP")" = "$DEPENDENCY_SIGNATURE" ]; }; then
+    # The embedding bridge requires our SDL drawable methods. Refresh its
+    # independently cached target even while reusing the remaining set.
     "$SCRIPT_DIR/Dependencies/build-sdl2.sh" "$PLATFORM"
+else
+    "$SCRIPT_DIR/Dependencies/build-all.sh" "$PLATFORM"
+    printf '%s\n' "$DEPENDENCY_SIGNATURE" > "$DEPENDENCY_STAMP"
 fi
 
-DEPS_DIR="$SCRIPT_DIR/Dependencies/build/$PLATFORM"
 BUILD_DIR="$SCRIPT_DIR/build/$PLATFORM"
 OBJ_DIR="$BUILD_DIR/obj"
 LIB_DIR="$BUILD_DIR/lib"
@@ -190,6 +215,7 @@ objcxx_sources=(
 )
 
 objects=()
+objects_changed=0
 
 # The embedded runtime shares layouts across translation units. Source-only
 # timestamps can silently link incompatible objects after a header change.
@@ -221,6 +247,7 @@ compile_source() {
 
     echo "==> Compiling $source"
     "$compiler" "${common_args[@]}" "$@" -c "$input" -o "$object"
+    objects_changed=1
 }
 
 for source in "${cpp_sources[@]}"; do
@@ -235,8 +262,12 @@ for source in "${objcxx_sources[@]}"; do
     compile_source "$CXX" "$source" -std=gnu++14 -x objective-c++ -Wno-deprecated-declarations
 done
 
-echo "==> Archiving $LIBRARY"
-"$LIBTOOL" -static -o "$LIBRARY" "${objects[@]}"
+if [ "$objects_changed" -eq 1 ] || [ ! -f "$LIBRARY" ]; then
+    echo "==> Archiving $LIBRARY"
+    "$LIBTOOL" -static -o "$LIBRARY" "${objects[@]}"
+else
+    echo "==> mkxp-z iOS runtime objects are unchanged"
+fi
 printf '%s\n' "$compile_signature" > "$OBJ_DIR/compile-signature"
 
 SYMBOLS_FILE="$BUILD_DIR/libMaouMkxpZ.symbols"
