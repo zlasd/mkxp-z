@@ -198,6 +198,11 @@ VALUE json2rb(json5pp::value const &v) {
     if (v.is_null())
         return Qnil;
     
+    // is_number() also includes TYPE_INTEGER. Check the narrower type first so
+    // JSON integer tokens stay Ruby Integers across the RGSS guest bridge.
+    if (v.is_integer())
+        return LL2NUM(v.as_integer());
+
     if (v.is_number())
         return rb_float_new(v.as_number());
     
@@ -206,9 +211,6 @@ VALUE json2rb(json5pp::value const &v) {
     
     if (v.is_boolean())
         return rb_bool_new(v.as_boolean());
-    
-    if (v.is_integer())
-        return LL2NUM(v.as_integer());
     
     if (v.is_array()) {
         auto &a = v.as_array();
@@ -245,8 +247,13 @@ json5pp::value rb2json(VALUE v) {
     if (v == Qtrue || v == Qfalse)
         return json5pp::value(RTEST(v));
     
-    if (RB_TYPE_P(v, RUBY_T_FIXNUM))
+    if (RB_TYPE_P(v, RUBY_T_FIXNUM)) {
+        const long long integer = NUM2LL(v);
+        if (integer >= std::numeric_limits<json5pp::value::integer_type>::min() &&
+            integer <= std::numeric_limits<json5pp::value::integer_type>::max())
+            return json5pp::value(static_cast<json5pp::value::integer_type>(integer));
         return json5pp::value(NUM2DBL(v));
+    }
     
     if (RB_TYPE_P(v, RUBY_T_ARRAY)) {
         json5pp::value ret_value = json5pp::array({});

@@ -1104,6 +1104,8 @@ private:
     int exp_part = 0;
     bool exp_negative = false;
     bool negative = false;
+    bool fractional = false;
+    bool exponent = false;
 
     // [int]
     if (ch == '-') {
@@ -1166,6 +1168,7 @@ private:
       throw syntax_error(ch, context);
     }
     if (ch == '.') {
+      fractional = true;
       // [frac]
       for (; ch = istream.get(), is_digit(ch); ++frac_divs) {
         frac_part *= 10;
@@ -1176,6 +1179,7 @@ private:
       }
     }
     if ((ch == 'e') || (ch == 'E')) {
+      exponent = true;
       // [exp]
       ch = istream.get();
       switch (ch) {
@@ -1196,7 +1200,9 @@ private:
       }
     }
     istream.unget();
-    if ((frac_part == 0) && (exp_part == 0)) {
+    // The token's syntax, not its numeric value, determines its type: 1.0
+    // and 1e0 must remain floating point after parsing.
+    if (!fractional && !exponent) {
       if (negative) {
         const auto integer_value = static_cast<value::integer_type>(-int_part);
         if (static_cast<decltype(int_part)>(integer_value) == -int_part) {
@@ -1609,7 +1615,13 @@ private:
         }
         ostream << ((v.content.number > 0) ? "infinity" : "-infinity");
       } else {
-        ostream << v.content.number;
+        std::ostringstream number;
+        number << v.content.number;
+        const auto text = number.str();
+        ostream << text;
+        if (text.find_first_of(".eE") == value::json_type::npos) {
+          ostream << ".0";
+        }
       }
       break;
     case value::TYPE_INTEGER:
