@@ -46,7 +46,7 @@ SDL_SOURCE="$PATCHED_SOURCE"
 SDL_CACHE_STAMP="$PREFIX/.maou-sdl2-active.sha256"
 SDL_CACHE_KEY="$({
     printf '%s\n' "$PLATFORM" "$DEPLOYMENT_TARGET" "$CONTROLLER_SUPPORT" \
-        "$SDL_C_FLAGS" "$PATCH_HASH"
+        "$SDL_C_FLAGS" "$PATCH_HASH" "$SDL_SOURCE" "$BUILD_ROOT/$SDL_BUILD_NAME-$PLATFORM" "$PREFIX"
     git -C "$REPO_DIR" rev-parse HEAD
     xcrun --sdk "$SDK" --show-sdk-path
     xcrun --sdk "$SDK" clang --version

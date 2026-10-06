@@ -50,6 +50,16 @@ require_source() {
     printf '%s\n' "$path"
 }
 
+cmake_cache_matches_paths() {
+    local build_dir="$1"
+    local source="$2"
+    local cache="$build_dir/CMakeCache.txt"
+
+    [ -f "$cache" ] || return 1
+    [ "$(sed -n 's/^CMAKE_CACHEFILE_DIR:[^=]*=//p' "$cache" | tail -n 1)" = "$build_dir" ] || return 1
+    [ "$(sed -n 's/^CMAKE_HOME_DIRECTORY:[^=]*=//p' "$cache" | tail -n 1)" = "$source" ]
+}
+
 run_cmake_dep() {
     local name="$1"
     local source="$2"
@@ -58,8 +68,12 @@ run_cmake_dep() {
     local build_dir="$BUILD_ROOT/$name-$PLATFORM"
     local toolchain_stamp="$build_dir/.maou-toolchain"
     local toolchain
-    toolchain="$(xcrun --sdk "$SDK" --show-sdk-path)
-$(xcrun --sdk "$SDK" clang --version)"
+    # CMakeCache.txt records absolute source, build, and install paths. Include
+    # those paths in the stamp so a copied cache cannot survive a worktree move
+    # merely because the SDK and compiler are unchanged.
+    toolchain="$(printf '%s\n' "$source" "$build_dir" "$PREFIX" "$DEPLOYMENT_TARGET"
+xcrun --sdk "$SDK" --show-sdk-path
+xcrun --sdk "$SDK" clang --version)"
     local fresh_args=()
     if [ -f "$build_dir/CMakeCache.txt" ] && \
        { [ ! -f "$toolchain_stamp" ] || [ "$(cat "$toolchain_stamp")" != "$toolchain" ]; }; then

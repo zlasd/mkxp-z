@@ -8,7 +8,16 @@ configure_platform "${1:-iphoneos}"
 UCHARDDET_SOURCE="$(require_source uchardet)"
 BUILD_DIR="$BUILD_ROOT/uchardet-$PLATFORM"
 
+fresh_args=()
+if [ -f "$BUILD_DIR/CMakeCache.txt" ] && \
+   ! cmake_cache_matches_paths "$BUILD_DIR" "$UCHARDDET_SOURCE"; then
+    # CMake caches contain absolute source and build paths. Reconfigure this
+    # dependency when its cache was copied from another checkout.
+    fresh_args=(--fresh)
+fi
+
 cmake \
+    ${fresh_args[@]+"${fresh_args[@]}"} \
     -U CMAKE_APPLE_ARCH_SYSROOTS \
     -U CMAKE_OSX_ARCHITECTURES \
     -S "$UCHARDDET_SOURCE" \
