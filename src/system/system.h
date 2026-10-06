@@ -37,6 +37,10 @@ int getScalingFactor();
 bool isWine();
 bool isRosetta();
 WineHostType getRealHostType();
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+// OpenAL's CoreAudio backend does not own AVAudioSession activation.
+bool activateAudioSession();
+#endif
 }
 
 #ifdef MKXPZ_BUILD_XCODE

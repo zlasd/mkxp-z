@@ -684,7 +684,15 @@ int EventThread::eventFilter(void *data, SDL_Event *event)
             
         case SDL_APP_DIDENTERFOREGROUND :
             Debug() << "SDL_APP_DIDENTERFOREGROUND";
-            
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+            // Locking deactivates the iOS session. Restarting the AudioUnit
+            // first can leave OpenAL disconnected, including future SE sources.
+            if (!systemImpl::activateAudioSession()) {
+                rtData.syncPoint.resumeThreads();
+                return 0;
+            }
+#endif
             if (HAVE_ALC_DEVICE_PAUSE)
                 alc.DeviceResume(rtData.alcDev);
             

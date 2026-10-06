@@ -8,6 +8,7 @@
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#import <AVFAudio/AVFAudio.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
@@ -15,8 +16,26 @@
 
 #import <sys/sysctl.h>
 #import "system.h"
+#import "util/debugwriter.h"
 #if !TARGET_OS_IPHONE
 #import "SettingsMenuController.h"
+#endif
+
+#if TARGET_OS_IPHONE
+bool systemImpl::activateAudioSession() {
+    @autoreleasepool {
+        AVAudioSession *session = AVAudioSession.sharedInstance;
+        NSError *error = nil;
+        if (![session setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeDefault options:0 error:&error]
+            || ![session setActive:YES error:&error]) {
+            NSString *message = error.localizedDescription ?: @"Unknown audio session error";
+            if (message.length > 512) message = [message substringToIndex:512];
+            Debug() << "iOS audio session activation failed:" << message.UTF8String;
+            return false;
+        }
+        return true;
+    }
+}
 #endif
 
 std::string systemImpl::getSystemLanguage() {

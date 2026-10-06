@@ -736,6 +736,9 @@ int maou_mkxpz_run(const MaouMkxpzRunOptions *options) {
     (void)setupWindowIcon;
 #endif
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    systemImpl::activateAudioSession();
+#endif
     ALCdevice *alcDev = alcOpenDevice(0);
 
     if (!alcDev) {
