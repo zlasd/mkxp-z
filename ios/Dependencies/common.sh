@@ -78,14 +78,22 @@ AUTOTOOLS_MACRO_FILES=(
 
 autotools_source_complete() {
     local root="$1"
-    shift
+    local macro_stamp="$2"
     local file
 
-    for file in "${AUTOTOOLS_AUXILIARY_FILES[@]}" "$@"; do
+    for file in "${AUTOTOOLS_AUXILIARY_FILES[@]}"; do
         if [ ! -f "$root/$file" ] || [ -L "$root/$file" ]; then
             return 1
         fi
     done
+    if [ -f "$macro_stamp" ]; then
+        while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            if [ ! -f "$root/$file" ] || [ -L "$root/$file" ]; then
+                return 1
+            fi
+        done < "$macro_stamp"
+    fi
     return 0
 }
 
@@ -99,26 +107,14 @@ prepare_autotools_source() {
     local file
     local needs_prepare=0
     local prepared_complete=1
-    local source_macro_files=()
-    local required_macro_files=()
-
-    for file in "${AUTOTOOLS_MACRO_FILES[@]}"; do
-        if [ -e "$source/$file" ] || [ -L "$source/$file" ]; then
-            source_macro_files+=("$file")
-        fi
-    done
 
     if source_revision="$(git -C "$source" rev-parse --verify HEAD 2>/dev/null)"; then
         if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$source_revision" ]; then
-            if [ -f "$macro_stamp" ]; then
-                while IFS= read -r file; do
-                    [ -n "$file" ] && required_macro_files+=("$file")
-                done < "$macro_stamp"
-            elif [ "${#source_macro_files[@]}" -ne 0 ]; then
+            if [ ! -f "$macro_stamp" ]; then
                 prepared_complete=0
             fi
             if [ "$prepared_complete" -eq 1 ] && \
-               autotools_source_complete "$prepared_source" "${required_macro_files[@]}"; then
+               autotools_source_complete "$prepared_source" "$macro_stamp"; then
                 printf '%s\n' "$prepared_source"
                 return 0
             fi
@@ -132,7 +128,7 @@ prepare_autotools_source() {
         fi
     done
     if [ "$needs_prepare" -eq 0 ]; then
-        for file in "${source_macro_files[@]}"; do
+        for file in "${AUTOTOOLS_MACRO_FILES[@]}"; do
             if [ -L "$source/$file" ]; then
                 needs_prepare=1
                 break
@@ -158,7 +154,12 @@ prepare_autotools_source() {
         rm -rf "$prepared_source"
     fi
     mkdir -p "$prepared_source"
-    required_macro_files=("${source_macro_files[@]}")
+    : > "$macro_stamp"
+    for file in "${AUTOTOOLS_MACRO_FILES[@]}"; do
+        if [ -e "$source/$file" ] || [ -L "$source/$file" ]; then
+            printf '%s\n' "$file" >> "$macro_stamp"
+        fi
+    done
     if ! git -C "$source" archive --format=tar "$source_revision" | tar -xf - -C "$prepared_source"; then
         echo "failed to archive Autotools source for $name" >&2
         return 1
@@ -168,14 +169,10 @@ prepare_autotools_source() {
         return 1
     fi
 
-    if ! autotools_source_complete "$prepared_source" "${required_macro_files[@]}"; then
+    if ! autotools_source_complete "$prepared_source" "$macro_stamp"; then
         echo "autoreconf produced incomplete auxiliary files for $name" >&2
         return 1
     fi
-    : > "$macro_stamp"
-    for file in "${required_macro_files[@]}"; do
-        printf '%s\n' "$file" >> "$macro_stamp"
-    done
     printf '%s\n' "$source_revision" > "$stamp"
     echo "==> Prepared portable Autotools source for $name at $prepared_source" >&2
     printf '%s\n' "$prepared_source"
