@@ -60,6 +60,127 @@ cmake_cache_matches_paths() {
     [ "$(sed -n 's/^CMAKE_HOME_DIRECTORY:[^=]*=//p' "$cache" | tail -n 1)" = "$source" ]
 }
 
+# Autotools' `autoreconf -isf` installs auxiliary files as symlinks on macOS.
+# The shared macOS dependency checkout can therefore retain links into a
+# versioned Homebrew Cellar which no longer exists when an iOS archive is
+# built.  Prepare a source snapshot from the pinned Git checkout and regenerate
+# the build system with copies whenever the source contains missing or linked
+# auxiliary files.  Keep the generated snapshot under the ignored iOS build
+# directory so the source cache remains reusable and portable between hosts.
+AUTOTOOLS_AUXILIARY_FILES=(
+    ltmain.sh compile missing install-sh depcomp
+    config.guess config.sub configure aclocal.m4
+)
+AUTOTOOLS_MACRO_FILES=(
+    m4/libtool.m4 m4/ltoptions.m4 m4/ltsugar.m4
+    m4/ltversion.m4 m4/lt~obsolete.m4
+)
+
+autotools_source_complete() {
+    local root="$1"
+    shift
+    local file
+
+    for file in "${AUTOTOOLS_AUXILIARY_FILES[@]}" "$@"; do
+        if [ ! -f "$root/$file" ] || [ -L "$root/$file" ]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+prepare_autotools_source() {
+    local name="$1"
+    local source="$2"
+    local prepared_source="$BUILD_ROOT/sources/$name"
+    local stamp="$prepared_source/.maou-autotools-source"
+    local macro_stamp="$prepared_source/.maou-autotools-macros"
+    local source_revision=""
+    local file
+    local needs_prepare=0
+    local prepared_complete=1
+    local source_macro_files=()
+    local required_macro_files=()
+
+    for file in "${AUTOTOOLS_MACRO_FILES[@]}"; do
+        if [ -e "$source/$file" ] || [ -L "$source/$file" ]; then
+            source_macro_files+=("$file")
+        fi
+    done
+
+    if source_revision="$(git -C "$source" rev-parse --verify HEAD 2>/dev/null)"; then
+        if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$source_revision" ]; then
+            if [ -f "$macro_stamp" ]; then
+                while IFS= read -r file; do
+                    [ -n "$file" ] && required_macro_files+=("$file")
+                done < "$macro_stamp"
+            elif [ "${#source_macro_files[@]}" -ne 0 ]; then
+                prepared_complete=0
+            fi
+            if [ "$prepared_complete" -eq 1 ] && \
+               autotools_source_complete "$prepared_source" "${required_macro_files[@]}"; then
+                printf '%s\n' "$prepared_source"
+                return 0
+            fi
+        fi
+    fi
+
+    for file in "${AUTOTOOLS_AUXILIARY_FILES[@]}"; do
+        if [ ! -f "$source/$file" ] || [ -L "$source/$file" ]; then
+            needs_prepare=1
+            break
+        fi
+    done
+    if [ "$needs_prepare" -eq 0 ]; then
+        for file in "${source_macro_files[@]}"; do
+            if [ -L "$source/$file" ]; then
+                needs_prepare=1
+                break
+            fi
+        done
+    fi
+    if [ "$needs_prepare" -eq 0 ]; then
+        printf '%s\n' "$source"
+        return 0
+    fi
+
+    if [ -z "$source_revision" ]; then
+        echo "Autotools source $source has missing or linked auxiliary files but is not a Git checkout." >&2
+        echo "Refetch the pinned dependency source before building iOS dependencies." >&2
+        return 1
+    fi
+    if [ -n "$(git -C "$source" status --porcelain --untracked-files=no)" ]; then
+        echo "Autotools source $source has tracked changes; refusing to regenerate it." >&2
+        return 1
+    fi
+
+    if [ -e "$prepared_source" ]; then
+        rm -rf "$prepared_source"
+    fi
+    mkdir -p "$prepared_source"
+    required_macro_files=("${source_macro_files[@]}")
+    if ! git -C "$source" archive --format=tar "$source_revision" | tar -xf - -C "$prepared_source"; then
+        echo "failed to archive Autotools source for $name" >&2
+        return 1
+    fi
+    if ! autoreconf -if "$prepared_source" >&2; then
+        echo "autoreconf failed for $name" >&2
+        return 1
+    fi
+
+    if ! autotools_source_complete "$prepared_source" "${required_macro_files[@]}"; then
+        echo "autoreconf produced incomplete auxiliary files for $name" >&2
+        return 1
+    fi
+    : > "$macro_stamp"
+    for file in "${required_macro_files[@]}"; do
+        printf '%s\n' "$file" >> "$macro_stamp"
+    done
+    printf '%s\n' "$source_revision" > "$stamp"
+    echo "==> Prepared portable Autotools source for $name at $prepared_source" >&2
+    printf '%s\n' "$prepared_source"
+}
+
 run_cmake_dep() {
     local name="$1"
     local source="$2"
@@ -116,6 +237,8 @@ run_autotools_dep() {
     local name="$1"
     local source="$2"
     shift 2
+
+    source="$(prepare_autotools_source "$name" "$source")"
 
     local build_dir="$BUILD_ROOT/$name-$PLATFORM"
     local sdkroot
