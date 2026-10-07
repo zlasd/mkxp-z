@@ -841,6 +841,7 @@ void BltShader::init()
 	GET_U(destination);
 	GET_U(subRect);
 	GET_U(opacity);
+	GET_U(tktkMultiply);
 }
 
 void BltShader::setSource()
@@ -861,6 +862,11 @@ void BltShader::setSubRect(const FloatRect &value)
 void BltShader::setOpacity(float value)
 {
 	gl.Uniform1f(u_opacity, value);
+}
+
+void BltShader::setTktkMultiply(bool value)
+{
+	gl.Uniform1i(u_tktkMultiply, value ? 1 : 0);
 }
 
 KglInvertShader::KglInvertShader()

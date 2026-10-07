@@ -1053,6 +1053,8 @@ static float bltNormOpacity(enum Bitmap::BitmapBltMode mode, int opacity)
 
         case Bitmap::KGL_SUBTRACT:
             return opacity >= 255 ? 1.0f : (float)opacity / 256.0f;
+        case Bitmap::TKTK_MULTIPLY:
+            return 1.0f;
     }
 }
 
@@ -1074,7 +1076,43 @@ static void bltFilter(enum Bitmap::BitmapBltMode mode, uint32_t &dst_pixel, uint
             }
             ((uint8_t *)&dst_pixel)[3] = 255;
             break;
+        case Bitmap::TKTK_MULTIPLY:
+            for (size_t i = 0; i < 3; ++i)
+            {
+                auto *dst = (uint8_t *)&dst_pixel;
+                const auto *src = (const uint8_t *)&src_pixel;
+                const unsigned d = unsigned(dst[i]) * dst[3] / 255;
+                const unsigned s = unsigned(src[i]) * src[3] / 255;
+                dst[i] = uint8_t(d * s / 255);
+            }
+            ((uint8_t *)&dst_pixel)[3] = 255;
+            break;
     }
+}
+
+void Bitmap::tktkMultiplyBlt(int x, int y, const Bitmap &source, IntRect rect)
+{
+    guardDisposed();
+    source.guardDisposed();
+    GUARD_MEGA;
+    if (source.megaSurface())
+        throw Exception(Exception::MKXPError, "TKTK multiply does not support mega surface sources");
+    if (&source == this)
+        throw Exception(Exception::MKXPError, "TKTK multiply does not support overlapping self blits");
+    // Match the legacy DLL's clipping order, using wide intermediates before
+    // converting the clipped dimensions back to the native drawing API.
+    int64_t dx = x, dy = y, sx = rect.x, sy = rect.y, w = rect.w, h = rect.h;
+    if (sx < 0) { w -= sx; sx = 0; }
+    if (sy < 0) { h -= sy; sy = 0; }
+    w = std::min(w, int64_t(source.width()) - sx);
+    h = std::min(h, int64_t(source.height()) - sy);
+    if (dx < 0) { sx -= dx; w += dx; dx = 0; }
+    if (dy < 0) { sy -= dy; h += dy; dy = 0; }
+    w = std::min(w, int64_t(width()) - dx);
+    h = std::min(h, int64_t(height()) - dy);
+    if (w <= 0 || h <= 0) return;
+    stretchBlt(IntRect(int(dx), int(dy), int(w), int(h)), source,
+               IntRect(int(sx), int(sy), int(w), int(h)), 255, false, TKTK_MULTIPLY);
 }
 
 void Bitmap::stretchBlt(IntRect destRect,
@@ -1097,7 +1135,7 @@ void Bitmap::stretchBlt(IntRect destRect,
         destWidth = destRect.w * p->selfHires->width() / width();
         destHeight = destRect.h * p->selfHires->height() / height();
 
-        p->selfHires->stretchBlt(IntRect(destX, destY, destWidth, destHeight), source, sourceRect, opacity);
+        p->selfHires->stretchBlt(IntRect(destX, destY, destWidth, destHeight), source, sourceRect, opacity, smooth, mode);
         return;
     }
 
@@ -1108,7 +1146,7 @@ void Bitmap::stretchBlt(IntRect destRect,
         sourceWidth = sourceRect.w * source.getHires()->width() / source.width();
         sourceHeight = sourceRect.h * source.getHires()->height() / source.height();
 
-        stretchBlt(destRect, *source.getHires(), IntRect(sourceX, sourceY, sourceWidth, sourceHeight), opacity);
+        stretchBlt(destRect, *source.getHires(), IntRect(sourceX, sourceY, sourceWidth, sourceHeight), opacity, smooth, mode);
         return;
     }
 
@@ -1119,6 +1157,7 @@ void Bitmap::stretchBlt(IntRect destRect,
             case NORMAL:
                 return;
             case KGL_SUBTRACT:
+            case TKTK_MULTIPLY:
                 break;
         }
     
@@ -1388,6 +1427,7 @@ void Bitmap::stretchBlt(IntRect destRect,
             shader.setDestination(gpTex.tex);
             shader.setSubRect(bltSubRect);
             shader.setOpacity(normOpacity);
+            shader.setTktkMultiply(mode == TKTK_MULTIPLY);
             
             Quad &quad = shState->gpQuad();
             quad.setTexPosRect(sourceRect, destRect);

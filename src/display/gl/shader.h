@@ -334,9 +334,10 @@ public:
 	void setDestCoorF(const Vec2 &value);
 	void setSubRect(const FloatRect &value);
 	void setOpacity(float value);
+	void setTktkMultiply(bool value);
 
 private:
-	GLint u_source, u_destination, u_subRect, u_opacity;
+	GLint u_source, u_destination, u_subRect, u_opacity, u_tktkMultiply;
 };
 
 class KglInvertShader : public ShaderBase

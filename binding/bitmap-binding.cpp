@@ -868,6 +868,20 @@ RB_METHOD_GUARD(bitmapKglSubtractRect) {
 }
 RB_METHOD_GUARD_END
 
+RB_METHOD_GUARD(bitmapTktkMultiplyBlt) {
+    Bitmap *b = getPrivateData<Bitmap>(self);
+    int x, y;
+    VALUE srcObj, rectObj;
+    rb_get_args(argc, argv, "iioo", &x, &y, &srcObj, &rectObj RB_ARG_END);
+    Bitmap *src = getPrivateDataCheck<Bitmap>(srcObj, BitmapType);
+    Rect *rect = getPrivateDataCheck<Rect>(rectObj, RectType);
+    if (!src) raiseDisposedAccess(srcObj);
+    if (!rect) raiseDisposedAccess(rectObj);
+    GFX_GUARD_EXC(b->tktkMultiplyBlt(x, y, *src, rect->toIntRect()););
+    return Qnil;
+}
+RB_METHOD_GUARD_END
+
 RB_METHOD_GUARD(bitmapKglShadowShaderH) {
     Bitmap *b = getPrivateData<Bitmap>(self);
 
@@ -957,6 +971,7 @@ void bitmapBindingInit() {
     _rb_define_method(klass, "_kgl_invert", bitmapKglInvert);
     _rb_define_method(klass, "_kgl_compress_alpha", bitmapKglCompressAlpha);
     _rb_define_method(klass, "_kgl_subtract_rect", bitmapKglSubtractRect);
+    _rb_define_method(klass, "_maou_tktk_multiply_blt", bitmapTktkMultiplyBlt);
     _rb_define_method(klass, "_kgl_shadow_shader_h", bitmapKglShadowShaderH);
     _rb_define_method(klass, "_kgl_shadow_shader_v", bitmapKglShadowShaderV);
 }

@@ -69,7 +69,10 @@ public:
 	enum BitmapBltMode {
 	    NORMAL,
 	    KGL_SUBTRACT,
+	    TKTK_MULTIPLY,
 	};
+
+    void tktkMultiplyBlt(int x, int y, const Bitmap &source, IntRect sourceRect);
 
 	void stretchBlt(IntRect destRect,
 	                const Bitmap &source, IntRect sourceRect,
