@@ -767,6 +767,8 @@ struct FPSLimiter {
     
     /* ticks per frame */
     int64_t tpf;
+    int64_t baseTPF;
+    double playbackSpeed = 1.0;
     
     /* Ticks per second */
     const uint64_t tickFreq;
@@ -801,9 +803,24 @@ struct FPSLimiter {
         adj.resetFlag = false;
     }
     
-    void setDesiredFPS(uint16_t value) { tpf = tickFreq / value; }
+    void setDesiredFPS(uint16_t value) {
+        baseTPF = tickFreq / value;
+        tpf = baseTPF / playbackSpeed;
+    }
+
+    void refreshPlaybackSpeed() {
+        double speed = maou_mkxpz_playback_speed();
+        if (speed == playbackSpeed) return;
+        playbackSpeed = speed;
+        tpf = baseTPF / speed;
+        // A rate change must not turn old timing debt into a burst of updates.
+        adj.idealDiff = 0;
+        adj.last = lastTickCount;
+        adj.resetFlag = true;
+    }
     
     void delay() {
+        refreshPlaybackSpeed();
         if (disabled)
             return;
         
@@ -839,7 +856,8 @@ struct FPSLimiter {
      * of ticks behind the ideal timestep,
      * there's no choice but to skip frame(s)
      * to catch up */
-    bool frameSkipRequired() const {
+    bool frameSkipRequired() {
+        refreshPlaybackSpeed();
         if (disabled)
             return false;
         

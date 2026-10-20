@@ -35,6 +35,9 @@ MAOU_MKXPZ_EXPORT int maou_mkxpz_begin_render_session(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_cancel_render_session(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_end_render_session(uint64_t generation);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_render_session_state(uint64_t generation);
+// Session-scoped pacing; leaves the game's Graphics.frame_rate unchanged.
+MAOU_MKXPZ_EXPORT int maou_mkxpz_set_playback_speed(uint64_t generation, double speed);
+MAOU_MKXPZ_EXPORT double maou_mkxpz_playback_speed(void);
 MAOU_MKXPZ_EXPORT int maou_mkxpz_render_cancelled(void);
 MAOU_MKXPZ_EXPORT uint64_t maou_mkxpz_render_generation(void);
 // Last managed generation that actually submitted a drawable, not a queued update.
