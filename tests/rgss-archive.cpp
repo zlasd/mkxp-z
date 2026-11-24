@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     assert(PHYSFS_registerArchiver(&RGSS1_Archiver));
     assert(PHYSFS_registerArchiver(&RGSS2_Archiver));
     assert(PHYSFS_registerArchiver(&RGSS3_Archiver));
-    const std::string path = std::string(argv[1]) + "/fixture.rgss3a";
+    std::string path = std::string(argv[1]) + "/fixture.rgss3a";
     auto mount = [&](const Bytes &bytes, bool expected) {
         std::ofstream file(path, std::ios::binary | std::ios::trunc);
         file.write(reinterpret_cast<const char *>(bytes.data()), bytes.size());
@@ -78,6 +78,27 @@ int main(int argc, char **argv) {
     unknown[7] = 'X';
     mount(unknown, false);
     std::remove(path.c_str());
+
+    // Check the largest supported legacy name with a normal empty asset.
+    const std::string legacyName(511, 'a');
+    const char legacyHeader[] = "RGSSAD\0\1";
+    Bytes legacy(legacyHeader, legacyHeader + 8);
+    uint32_t magic = 0xdeadcaFE;
+    auto nextKey = [&]() {
+        uint32_t old = magic;
+        magic = magic * 7 + 3;
+        return old;
+    };
+    word(legacy, uint32_t(legacyName.size()) ^ nextKey());
+    for (char c : legacyName) legacy.push_back(uint8_t(c) ^ uint8_t(nextKey()));
+    word(legacy, nextKey());
+    for (const char *extension : {"rgssad", "rgss2a"}) {
+        path = std::string(argv[1]) + "/fixture." + extension;
+        mount(legacy, true);
+        assert(PHYSFS_exists(legacyName.c_str()));
+        assert(PHYSFS_unmount(path.c_str()));
+        std::remove(path.c_str());
+    }
     assert(PHYSFS_deinit());
-    puts("RGSS3/Fux2Pack reads, seeks, and malformed archives passed");
+    puts("Legacy RGSS names and RGSS3/Fux2Pack reads, seeks, and archive validation passed");
 }

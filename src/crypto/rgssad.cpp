@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <memory>
 #include <string>
 
 /* Equivalent Linear Congruential Generator (LCG) constants for iteration 2^n
@@ -392,7 +393,11 @@ RGSS_openArchive(PHYSFS_Io *io, const char *, int forWrite, int *claimed)
 	else
 		*claimed = 1;
 
-	RGSS_archiveData *data = new RGSS_archiveData;
+	const PHYSFS_sint64 archiveSize = io->length(io);
+	if (archiveSize < 0)
+		return NULL;
+
+	std::unique_ptr<RGSS_archiveData> data(new RGSS_archiveData);
 	data->archiveIo = io;
 
 	uint32_t magic = RGSS_MAGIC;
@@ -400,23 +405,23 @@ RGSS_openArchive(PHYSFS_Io *io, const char *, int forWrite, int *claimed)
 	/* Top level entry list */
 	BoostSet<std::string> &topLevel = data->dirHash[""];
 
-	while (true)
+	while (io->tell(io) != archiveSize)
 	{
-		/* Read filename length,
-         * if nothing was read, no files remain */
+		/* A complete entry is required at every position before EOF. */
 		uint32_t nameLen;
 
 		if (!readUint32(io, nameLen))
-			break;
+			return NULL;
 
 		nameLen ^= advanceMagic(magic);
 
-		static char nameBuf[512];
+		char nameBuf[512];
+		if (!nameLen || nameLen >= sizeof(nameBuf) || !IO_READ(io, nameBuf, nameLen))
+			return NULL;
+
 		for (uint32_t i = 0; i < nameLen; ++i)
 		{
-			char c;
-			io->read(io, &c, 1);
-			nameBuf[i] = c ^ (advanceMagic(magic) & 0xFF);
+			nameBuf[i] ^= (advanceMagic(magic) & 0xFF);
 			if (nameBuf[i] == '\\')
 				nameBuf[i] = '/';
 		}
@@ -424,21 +429,25 @@ RGSS_openArchive(PHYSFS_Io *io, const char *, int forWrite, int *claimed)
 		nameBuf[nameLen] = '\0';
 
 		uint32_t entrySize;
-		readUint32(io, entrySize);
+		if (!readUint32(io, entrySize))
+			return NULL;
 		entrySize ^= advanceMagic(magic);
 
 		RGSS_entryData entry;
 		entry.offset = io->tell(io);
+		if (entry.offset < 0 || uint64_t(entry.offset) + entrySize > uint64_t(archiveSize))
+			return NULL;
 		entry.size = entrySize;
 		entry.startMagic = magic;
 
 		data->entryHash.insert(nameBuf, entry);
-		processDirectories(data, topLevel, nameBuf, nameLen);
+		processDirectories(data.get(), topLevel, nameBuf, nameLen);
 
-		io->seek(io, entry.offset + entry.size);
+		if (!io->seek(io, entry.offset + entry.size))
+			return NULL;
 	}
 
-	return data;
+	return data.release();
 }
 
 static PHYSFS_EnumerateCallbackResult
